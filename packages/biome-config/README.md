@@ -1,1 +1,2 @@
-# `biome-config`
+# `@skopeo/biome-config`
+
