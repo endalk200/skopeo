@@ -185,6 +185,37 @@ describe("skopeo CLI", () => {
 		),
 	);
 
+	it.effect("disables telemetry with a warning when the configured collector is unavailable", () =>
+		Effect.gen(function* () {
+			const previousFetch = globalThis.fetch;
+			globalThis.fetch = (() => Promise.reject(new Error("collector unavailable"))) as typeof fetch;
+
+			yield* Effect.gen(function* () {
+				const loggers = yield* Logger.CurrentLoggers;
+				const stderr = yield* TestConsole.errorLines;
+
+				assert.strictEqual(loggers.size, 0);
+				assert.deepStrictEqual(stderr, [
+					"Warning: OTLP collector unreachable at http://127.0.0.1:65535; telemetry disabled.",
+				]);
+			}).pipe(
+				Effect.provide(
+					telemetryLayerFromConfiguration({
+						telemetry: {
+							enabled: true,
+							otlpEndpoint: "http://127.0.0.1:65535",
+						},
+					}),
+				),
+				Effect.ensuring(
+					Effect.sync(() => {
+						globalThis.fetch = previousFetch;
+					}),
+				),
+			);
+		}).pipe(Effect.provide(TestConsole.layer)),
+	);
+
 	it.effect("removes the default console loggers when telemetry is disabled", () =>
 		Effect.gen(function* () {
 			const loggers = yield* Logger.CurrentLoggers;

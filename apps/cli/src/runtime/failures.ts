@@ -21,6 +21,4 @@ export const handleCliFailure = {
 		printAndFail(error, formatConfigError(error)),
 	InvalidTelemetryEnvironment: (error: Parameters<typeof formatConfigError>[0]) =>
 		printAndFail(error, formatConfigError(error)),
-	TelemetryCollectorUnavailable: (error: { readonly endpoint: string }) =>
-		printAndFail(error, `Telemetry is enabled, but the OTLP collector is not reachable at ${error.endpoint}.`),
 } as const;
