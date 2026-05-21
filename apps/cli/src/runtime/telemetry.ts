@@ -21,12 +21,19 @@ export const withoutConsoleLogger = Logger.layer([], {
 	mergeWithExisting: false,
 });
 
+const otlpTraceEndpoint = (endpoint: string) => `${endpoint.replace(/\/$/, "")}/v1/traces`;
+
 const checkCollector = (endpoint: string) =>
 	Effect.tryPromise({
 		try: async () => {
-			const response = await fetch(endpoint, {
+			const response = await fetch(otlpTraceEndpoint(endpoint), {
+				method: "OPTIONS",
 				signal: AbortSignal.timeout(1_000),
 			});
+
+			if (!response.ok && response.status !== 405) {
+				throw new Error(`Collector responded with HTTP ${response.status}`);
+			}
 
 			return response;
 		},
@@ -46,14 +53,14 @@ const makeTelemetryLayer = (endpoint: string) =>
 				spanProcessor: [
 					new SimpleSpanProcessor(
 						new OTLPTraceExporter({
-							url: `${endpoint}/v1/traces`,
+							url: otlpTraceEndpoint(endpoint),
 						}),
 					),
 				],
 				logRecordProcessor: [
 					new SimpleLogRecordProcessor(
 						new OTLPLogExporter({
-							url: `${endpoint}/v1/logs`,
+							url: `${endpoint.replace(/\/$/, "")}/v1/logs`,
 						}),
 					),
 				],

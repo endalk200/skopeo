@@ -1,10 +1,13 @@
 import { createRequire } from "node:module";
 import { assert, describe, it } from "@effect/vitest";
 import {
+	CONFIG_PATH_ENV,
 	type ConfigValidationReport,
 	InvalidConfigPath,
+	OTLP_ENDPOINT_ENV,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
+	TELEMETRY_ENV,
 } from "@skopeo/config";
 import { Effect, FileSystem, Layer, Logger, Path, Stdio, Terminal } from "effect";
 import { TestConsole } from "effect/testing";
@@ -58,6 +61,32 @@ const cliTestLayer = (files: Record<string, string> = {}) =>
 		withoutConsoleLogger,
 	);
 
+const skopeoEnvKeys = [CONFIG_PATH_ENV, TELEMETRY_ENV, OTLP_ENDPOINT_ENV] as const;
+
+const withIsolatedSkopeoEnvironment = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+	Effect.suspend(() => {
+		const previous = Object.fromEntries(skopeoEnvKeys.map((key) => [key, process.env[key]]));
+
+		for (const key of skopeoEnvKeys) {
+			delete process.env[key];
+		}
+
+		return effect.pipe(
+			Effect.ensuring(
+				Effect.sync(() => {
+					for (const key of skopeoEnvKeys) {
+						const value = previous[key];
+						if (value === undefined) {
+							delete process.env[key];
+						} else {
+							process.env[key] = value;
+						}
+					}
+				}),
+			),
+		);
+	});
+
 const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, string> = {}) =>
 	Effect.gen(function* () {
 		yield* runCliWithArgs(args);
@@ -66,7 +95,7 @@ const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, str
 			stdout: yield* TestConsole.logLines,
 			stderr: yield* TestConsole.errorLines,
 		};
-	}).pipe(Effect.provide(cliTestLayer(files)));
+	}).pipe(withIsolatedSkopeoEnvironment, Effect.provide(cliTestLayer(files)));
 
 describe("skopeo CLI", () => {
 	it.effect("prints root help and succeeds when invoked without arguments", () =>
@@ -92,8 +121,9 @@ describe("skopeo CLI", () => {
 	it.effect("prints the effective config path", () =>
 		Effect.gen(function* () {
 			const { stdout } = yield* runSkopeoCommand(["config", "path"]);
+			const normalizedPath = String(stdout[0] ?? "").replaceAll("\\", "/");
 
-			assert.match(String(stdout[0] ?? ""), /\/\.skopeo\/config\.toml$/);
+			assert.strictEqual(normalizedPath.endsWith("/.skopeo/config.toml"), true);
 		}),
 	);
 
@@ -104,7 +134,7 @@ describe("skopeo CLI", () => {
 
 			assert.include(stdoutText, "No config file found");
 			assert.include(stdoutText, "Environment overrides are valid");
-			assert.include(stdoutText, "Valid Skopeo Configuration");
+			assert.include(stdoutText, "Valid Skopeo Configuration.");
 		}),
 	);
 

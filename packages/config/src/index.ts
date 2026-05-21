@@ -241,7 +241,7 @@ const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 			file: fileStatus,
 			env: envStatus,
 			effective: Result.isSuccess(effectiveResult)
-				? validStatus("Valid Skopeo Configuration")
+				? validStatus("Valid Skopeo Configuration.")
 				: invalidStatus(formatConfigError(effectiveResult.failure)),
 			config: Result.isSuccess(effectiveResult) ? effectiveResult.success : undefined,
 		};
