@@ -1,0 +1,33 @@
+{
+	"name": "@skopeo/config",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"development": "./src/index.ts",
+			"node": "./dist/index.js",
+			"default": "./src/index.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"check-types": "tsc -p tsconfig.json --noEmit",
+		"format": "biome format --write package.json tsconfig.json src",
+		"lint": "biome check package.json tsconfig.json src",
+		"lint:fix": "biome check --fix package.json tsconfig.json src",
+		"test": "vitest run src --passWithNoTests"
+	},
+	"dependencies": {
+		"effect": "4.0.0-beta.67",
+		"toml": "^4.1.1"
+	},
+	"devDependencies": {
+		"@effect/vitest": "4.0.0-beta.67",
+		"@skopeo/typescript-config": "workspace:*",
+		"@types/node": "^25.0.0",
+		"typescript": "5.9.2",
+		"vitest": "^4.1.4"
+	}
+}
