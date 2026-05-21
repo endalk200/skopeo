@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, FileSystem } from "effect";
+import * as PlatformError from "effect/PlatformError";
 
 import {
 	CONFIG_PATH_ENV,
@@ -9,6 +10,7 @@ import {
 	OTLP_ENDPOINT_ENV,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
+	resolveConfigPath,
 	SkopeoConfig,
 	TELEMETRY_ENV,
 	validateSkopeoConfigFromEnvironment,
@@ -84,6 +86,15 @@ otlp_endpoint = "http://localhost:9999"
 		}),
 	);
 
+	it.effect("rejects whitespace-only config paths", () =>
+		Effect.gen(function* () {
+			const invalid = yield* Effect.flip(resolveConfigPath({ [CONFIG_PATH_ENV]: "   " }));
+
+			assert.strictEqual(invalid._tag, "InvalidConfigPath");
+			assert.strictEqual(invalid.value, "   ");
+		}),
+	);
+
 	it.effect("reports invalid file and env sources separately", () =>
 		Effect.gen(function* () {
 			const report = yield* validateSkopeoConfigFromEnvironment({
@@ -150,6 +161,36 @@ otlp_endpoint = "not-a-url"
 			);
 
 			assert.strictEqual(alreadyExists._tag, "ConfigFileAlreadyExists");
+		}),
+	);
+
+	it.effect("maps config init filesystem failures to config write errors", () =>
+		Effect.gen(function* () {
+			const path = "/tmp/skopeo-init-write-failure.toml";
+			const cause = PlatformError.systemError({
+				_tag: "PermissionDenied",
+				module: "FileSystem",
+				method: "makeDirectory",
+				pathOrDescriptor: "/tmp",
+			});
+
+			const failure = yield* Effect.flip(
+				initSkopeoConfigFromEnvironment({ [CONFIG_PATH_ENV]: path }).pipe(
+					Effect.provide(
+						FileSystem.layerNoop({
+							exists: () => Effect.succeed(false),
+							makeDirectory: () => Effect.fail(cause),
+						}),
+					),
+				),
+			);
+
+			assert.strictEqual(failure._tag, "ConfigFileWriteError");
+			if (failure._tag !== "ConfigFileWriteError") {
+				return;
+			}
+			assert.strictEqual(failure.path, path);
+			assert.include(failure.message, "PermissionDenied");
 		}),
 	);
 });

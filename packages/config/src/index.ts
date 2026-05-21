@@ -43,6 +43,12 @@ export class ConfigFileParseError extends Data.TaggedError("ConfigFileParseError
 	readonly cause: unknown;
 }> {}
 
+export class ConfigFileWriteError extends Data.TaggedError("ConfigFileWriteError")<{
+	readonly path: string;
+	readonly message: string;
+	readonly cause: unknown;
+}> {}
+
 export class ExplicitConfigFileNotFound extends Data.TaggedError("ExplicitConfigFileNotFound")<{
 	readonly path: string;
 }> {}
@@ -54,6 +60,7 @@ export class ConfigFileAlreadyExists extends Data.TaggedError("ConfigFileAlready
 export type ConfigError =
 	| Config.ConfigError
 	| ConfigFileParseError
+	| ConfigFileWriteError
 	| ExplicitConfigFileNotFound
 	| InvalidConfigPath
 	| InvalidTelemetryEndpoint
@@ -165,7 +172,7 @@ export const resolveConfigPath = (
 ): Effect.Effect<ConfigPathResolution, InvalidConfigPath> =>
 	Effect.suspend(() => {
 		const configuredPath = env[CONFIG_PATH_ENV];
-		if (configuredPath === "") {
+		if (configuredPath !== undefined && configuredPath.trim() === "") {
 			return Effect.fail(new InvalidConfigPath({ value: configuredPath }));
 		}
 
@@ -255,7 +262,9 @@ export const initSkopeoConfig = Effect.gen(function* () {
 const initSkopeoConfigAtPath = (path: ConfigPathResolution) =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
-		const exists = yield* fs.exists(path.path);
+		const exists = yield* fs
+			.exists(path.path)
+			.pipe(Effect.mapError((cause) => makeConfigFileWriteError(path.path, cause)));
 
 		yield* Effect.annotateCurrentSpan({
 			"skopeo.config.exists": exists,
@@ -265,8 +274,12 @@ const initSkopeoConfigAtPath = (path: ConfigPathResolution) =>
 			return yield* Effect.fail(new ConfigFileAlreadyExists({ path: path.path }));
 		}
 
-		yield* fs.makeDirectory(dirname(path.path), { recursive: true });
-		yield* fs.writeFileString(path.path, starterConfigToml);
+		yield* fs
+			.makeDirectory(dirname(path.path), { recursive: true })
+			.pipe(Effect.mapError((cause) => makeConfigFileWriteError(path.path, cause)));
+		yield* fs
+			.writeFileString(path.path, starterConfigToml)
+			.pipe(Effect.mapError((cause) => makeConfigFileWriteError(path.path, cause)));
 
 		yield* Effect.logInfo("Created Skopeo Configuration file", {
 			path: path.path,
@@ -297,6 +310,8 @@ export const formatConfigError = (error: ConfigError | ConfigFileAlreadyExists):
 			return `Config file already exists at ${error.path}.`;
 		case "ConfigFileParseError":
 			return `Could not parse config file at ${error.path}: ${error.message}`;
+		case "ConfigFileWriteError":
+			return `Could not write config file at ${error.path}: ${error.message}`;
 		case "ExplicitConfigFileNotFound":
 			return `Config file from ${CONFIG_PATH_ENV} does not exist at ${error.path}.`;
 		case "InvalidConfigPath":
@@ -309,6 +324,13 @@ export const formatConfigError = (error: ConfigError | ConfigFileAlreadyExists):
 			return error.message;
 	}
 };
+
+const makeConfigFileWriteError = (path: string, cause: unknown) =>
+	new ConfigFileWriteError({
+		path,
+		message: cause instanceof Error ? cause.message : String(cause),
+		cause,
+	});
 
 const loadFileProvider = (
 	path: ConfigPathResolution,
