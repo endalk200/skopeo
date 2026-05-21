@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "skills": {
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "computedHash": "81af098a4ce6f0e323c1bd02b8e79df3bbaed57cbf1c4060f58ddc95de5545a1"
+    },
+    "conventional-commit": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/conventional-commit/SKILL.md",
+      "computedHash": "2da45d15f148a560058db66e833c56be4342442549a21bc9d7daf8a38f6fe448"
+    },
+    "grill-with-docs": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
+      "computedHash": "adefdb606940fbf8b34c85d933425933b903d56ac01f4c89e11da2faab519526"
+    },
+    "improve-codebase-architecture": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "computedHash": "143913bf057c309f7b314eef7025ea16b11e3247e942cf8cb3218459467cfaef"
+    },
+    "source-context": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/source-context/SKILL.md",
+      "computedHash": "8d87a7f6c524b6af9e5730899fdf5e24683e95955915d6d27a42f29d2806ae5f"
+    },
+    "tdd": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "6cda6cf2293a8770137dfd947efee03103513f73d592d3c96f7613f9ab9a0220"
+    },
+    "to-issues": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-issues/SKILL.md",
+      "computedHash": "1528793a636aa967d426bcc4b9297176fcf4bad0456c478f7982ac136142527e"
+    },
+    "to-prd": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/to-prd/SKILL.md",
+      "computedHash": "7259cea5e1abb2e69861c75c8ad92143a8d6191811b30fcbfac68f507988b467"
+    },
+    "turborepo": {
+      "source": "vercel/turborepo",
+      "sourceType": "github",
+      "computedHash": "af51e16468977f0a5db2bad0baa50b6452f690318d81f3c0382f701830acdbdc"
+    },
+    "zoom-out": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/zoomout/SKILL.md",
+      "computedHash": "8357aeaece3b709c442eab67e64b86844e05e2f1ea95b109565eba50b6def36e"
+    }
+  }
+}
