@@ -4,7 +4,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { DEFAULT_OTLP_HTTP_ENDPOINT, SkopeoConfig, type SkopeoConfiguration } from "@skopeo/config";
-import { Data, Effect, Layer, Logger } from "effect";
+import { Console, Data, Effect, Layer, Logger } from "effect";
 
 import { VERSION } from "../version.js";
 
@@ -69,15 +69,22 @@ const makeTelemetryLayer = (endpoint: string) =>
 		}),
 	);
 
+const unavailableTelemetryFallback = (error: TelemetryCollectorUnavailable) =>
+	Layer.effectDiscard(
+		Console.error(`Warning: OTLP collector unreachable at ${error.endpoint}; telemetry disabled.`),
+	).pipe(Layer.merge(withoutConsoleLogger));
+
 export const telemetryLayerFromMode = (
 	mode: TelemetryMode,
 	endpoint = DEFAULT_OTLP_HTTP_ENDPOINT,
-): Layer.Layer<never, TelemetryCollectorUnavailable> =>
-	mode === "enabled" ? makeTelemetryLayer(endpoint) : withoutConsoleLogger;
+): Layer.Layer<never> =>
+	mode === "enabled"
+		? makeTelemetryLayer(endpoint).pipe(
+				Layer.catchTag("TelemetryCollectorUnavailable", unavailableTelemetryFallback),
+			)
+		: withoutConsoleLogger;
 
-export const telemetryLayerFromConfiguration = (
-	config: SkopeoConfiguration,
-): Layer.Layer<never, TelemetryCollectorUnavailable> =>
+export const telemetryLayerFromConfiguration = (config: SkopeoConfiguration): Layer.Layer<never> =>
 	telemetryLayerFromMode(config.telemetry.enabled ? "enabled" : "disabled", config.telemetry.otlpEndpoint);
 
 export const telemetryLayer = Layer.unwrap(
