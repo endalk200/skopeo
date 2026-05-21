@@ -15,6 +15,7 @@
 		"build": "tsc -p tsconfig.json",
 		"check-types": "tsc -p tsconfig.json --noEmit",
 		"format": "biome format --write package.json tsconfig.json src",
+		"format:check": "biome format package.json tsconfig.json src",
 		"lint": "biome check package.json tsconfig.json src",
 		"lint:fix": "biome check --fix package.json tsconfig.json src",
 		"test": "vitest run src --passWithNoTests"

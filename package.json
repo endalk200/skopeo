@@ -9,6 +9,7 @@
 		"lint:fix": "turbo run lint:fix",
 		"test": "turbo run test",
 		"format": "turbo run format",
+		"format:check": "turbo run format:check",
 		"check-types": "turbo run check-types",
 		"cli": "bun run apps/cli/src/bin.ts --",
 		"skopeo": "bun run apps/cli/src/bin.ts --",

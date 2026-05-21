@@ -5,6 +5,7 @@
 	"scripts": {
 		"check-types": "tsc -p tsconfig.json --noEmit",
 		"format": "biome format --write package.json base.json tsconfig.json validate.ts README.md",
+		"format:check": "biome format package.json base.json tsconfig.json validate.ts README.md",
 		"lint": "biome check package.json base.json tsconfig.json validate.ts README.md"
 	},
 	"exports": {
