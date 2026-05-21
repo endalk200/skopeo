@@ -1,0 +1,3 @@
+# Runtime, Package Manager, and Test Runner
+
+Skopeo runs on Node.js with a minimum supported version of `>=22.12.0`, uses Bun as the only supported package manager, and uses Vitest with `@effect/vitest` for tests. Bun may execute TypeScript entrypoints during local development for convenience, but production behavior targets compiled JavaScript on Node and release/CI checks must preserve Node compatibility. We chose Vitest over `bun test` because the installed Effect version provides `@effect/vitest` helpers and Effect itself uses Vitest, while Bun remains valuable for dependency installation and workspace script execution.
