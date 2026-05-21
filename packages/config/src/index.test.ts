@@ -1,0 +1,155 @@
+import { assert, describe, it } from "@effect/vitest";
+import { Effect, FileSystem } from "effect";
+
+import {
+	CONFIG_PATH_ENV,
+	DEFAULT_OTLP_HTTP_ENDPOINT,
+	initSkopeoConfigFromEnvironment,
+	loadSkopeoConfigFromEnvironment,
+	OTLP_ENDPOINT_ENV,
+	parseTelemetryEnabledEnv,
+	parseTelemetryEndpointEnv,
+	SkopeoConfig,
+	TELEMETRY_ENV,
+	validateSkopeoConfigFromEnvironment,
+} from "./index.js";
+
+const fileSystemLayer = (files: Record<string, string>) =>
+	FileSystem.layerNoop({
+		exists: (path) => Effect.succeed(Object.hasOwn(files, String(path))),
+		readFileString: (path) => Effect.succeed(files[String(path)] ?? ""),
+		makeDirectory: () => Effect.void,
+		writeFileString: (path, data) =>
+			Effect.sync(() => {
+				files[String(path)] = data;
+			}),
+	});
+
+describe("@skopeo/config", () => {
+	it.effect("loads built-in defaults when the default config file is missing", () =>
+		Effect.gen(function* () {
+			const config = yield* loadSkopeoConfigFromEnvironment({});
+
+			assert.deepStrictEqual(config, {
+				telemetry: {
+					enabled: false,
+					otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
+				},
+			});
+		}).pipe(Effect.provide(fileSystemLayer({}))),
+	);
+
+	it.effect("uses env overrides before TOML file values", () =>
+		Effect.gen(function* () {
+			const config = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-config-test.toml",
+				[OTLP_ENDPOINT_ENV]: "http://127.0.0.1:4318/",
+			});
+
+			assert.deepStrictEqual(config.telemetry, {
+				enabled: true,
+				otlpEndpoint: "http://127.0.0.1:4318",
+			});
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-config-test.toml": `[telemetry]
+enabled = true
+otlp_endpoint = "http://localhost:9999"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("keeps SKOPEO_TELEMETRY strict", () =>
+		Effect.gen(function* () {
+			assert.strictEqual(yield* parseTelemetryEnabledEnv("true"), true);
+			assert.strictEqual(yield* parseTelemetryEnabledEnv("false"), false);
+
+			const invalid = yield* Effect.flip(parseTelemetryEnabledEnv("1"));
+
+			assert.strictEqual(invalid._tag, "InvalidTelemetryEnvironment");
+		}),
+	);
+
+	it.effect("parses SKOPEO_OTLP_ENDPOINT as an absolute URL override", () =>
+		Effect.gen(function* () {
+			assert.strictEqual(yield* parseTelemetryEndpointEnv(undefined), undefined);
+			assert.strictEqual(yield* parseTelemetryEndpointEnv("http://127.0.0.1:4318/"), "http://127.0.0.1:4318");
+
+			const invalid = yield* Effect.flip(parseTelemetryEndpointEnv("not-a-url"));
+
+			assert.strictEqual(invalid._tag, "InvalidTelemetryEndpoint");
+		}),
+	);
+
+	it.effect("reports invalid file and env sources separately", () =>
+		Effect.gen(function* () {
+			const report = yield* validateSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-invalid-config-test.toml",
+				[TELEMETRY_ENV]: "1",
+			});
+
+			assert.strictEqual(report.file._tag, "invalid");
+			assert.strictEqual(report.env._tag, "invalid");
+			assert.strictEqual(report.effective._tag, "invalid");
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-invalid-config-test.toml": `[telemetry]
+enabled = true
+otlp_endpoint = "not-a-url"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("does not hide an invalid file source behind valid env overrides during validation", () =>
+		Effect.gen(function* () {
+			const report = yield* validateSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-invalid-lower-precedence.toml",
+				[OTLP_ENDPOINT_ENV]: "http://127.0.0.1:4318",
+			});
+
+			assert.strictEqual(report.file._tag, "invalid");
+			assert.strictEqual(report.env._tag, "valid");
+			assert.strictEqual(report.effective._tag, "valid");
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-invalid-lower-precedence.toml": `[telemetry]
+enabled = true
+otlp_endpoint = "not-a-url"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("provides the resolved service through an Effect layer", () =>
+		Effect.gen(function* () {
+			const config = yield* SkopeoConfig;
+
+			assert.strictEqual(config.telemetry.enabled, false);
+		}).pipe(Effect.provide(SkopeoConfig.layerFromEnvironment({})), Effect.provide(fileSystemLayer({}))),
+	);
+
+	it.effect("initializes a starter config file without overwriting", () =>
+		Effect.gen(function* () {
+			const files: Record<string, string> = {};
+			const env = { [CONFIG_PATH_ENV]: "/tmp/skopeo-init-config-test.toml" };
+			const path = yield* initSkopeoConfigFromEnvironment(env).pipe(Effect.provide(fileSystemLayer(files)));
+
+			assert.strictEqual(path.path, "/tmp/skopeo-init-config-test.toml");
+			assert.include(files["/tmp/skopeo-init-config-test.toml"] ?? "", "[telemetry]");
+
+			const alreadyExists = yield* Effect.flip(
+				initSkopeoConfigFromEnvironment(env).pipe(Effect.provide(fileSystemLayer(files))),
+			);
+
+			assert.strictEqual(alreadyExists._tag, "ConfigFileAlreadyExists");
+		}),
+	);
+});
