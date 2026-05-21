@@ -21,14 +21,14 @@
 		"test": "vitest run src --passWithNoTests"
 	},
 	"dependencies": {
-		"effect": "4.0.0-beta.67",
+		"effect": "4.0.0-beta.70",
 		"toml": "^4.1.1"
 	},
 	"devDependencies": {
-		"@effect/vitest": "4.0.0-beta.67",
+		"@effect/vitest": "4.0.0-beta.70",
 		"@skopeo/typescript-config": "workspace:*",
-		"@types/node": "^25.0.0",
-		"typescript": "5.9.2",
-		"vitest": "^4.1.4"
+		"@types/node": "^25.9.1",
+		"typescript": "6.0.3",
+		"vitest": "^4.1.7"
 	}
 }
