@@ -1,6 +1,6 @@
 {
 	"name": "@skopeo/cli",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Skopeo code review agent CLI",
 	"private": false,
 	"type": "module",
