@@ -31,6 +31,11 @@ const build = spawnSync(
 	},
 );
 
+if (build.error !== undefined) {
+	console.error(`Could not start Bun build: ${build.error.message}`);
+	process.exit(1);
+}
+
 if (build.status !== 0) {
 	process.exit(build.status ?? 1);
 }

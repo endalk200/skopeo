@@ -8,7 +8,6 @@ type Advisory = {
 
 type AuditReport = Record<string, ReadonlyArray<Advisory>>;
 
-const devOnlyModerateAdvisoryPackages = new Set(["hono"]);
 const severityRank = {
 	low: 0,
 	moderate: 1,
@@ -34,34 +33,17 @@ if (jsonStart === -1) {
 
 const report = JSON.parse(audit.stdout.slice(jsonStart)) as AuditReport;
 const failures: Array<string> = [];
-const warnings: Array<string> = [];
 
 for (const [packageName, advisories] of Object.entries(report)) {
 	for (const advisory of advisories) {
-		const isDevOnlyModerate = advisory.severity === "moderate" && devOnlyModerateAdvisoryPackages.has(packageName);
-
-		if (
-			severityRank[advisory.severity] >= severityRank.high ||
-			(advisory.severity === "moderate" && !isDevOnlyModerate)
-		) {
+		if (severityRank[advisory.severity] >= severityRank.moderate) {
 			failures.push(`${packageName}: ${advisory.severity} - ${advisory.title} (${advisory.url})`);
-			continue;
-		}
-
-		if (isDevOnlyModerate) {
-			warnings.push(
-				`${packageName}: ${advisory.severity} dev-only advisory - ${advisory.title} (${advisory.url})`,
-			);
 		}
 	}
-}
-
-for (const warning of warnings) {
-	console.warn(`Release audit warning: ${warning}`);
 }
 
 if (failures.length > 0) {
 	throw new Error(`Release dependency audit failed:\n${failures.join("\n")}`);
 }
 
-console.log("Release dependency audit passed with dev-only warnings.");
+console.log("Release dependency audit passed.");

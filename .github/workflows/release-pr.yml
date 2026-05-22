@@ -41,7 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if git diff --quiet; then
+          if [ -z "$(git status --porcelain --untracked-files=all)" ]; then
             echo "No changesets found; release PR is up to date."
             exit 0
           fi

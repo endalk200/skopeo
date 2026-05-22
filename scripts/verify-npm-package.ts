@@ -9,6 +9,8 @@ const expectedFiles = ["dist/bin.js", "LICENSE", "package.json", "README.md"].so
 
 const packageJson = (await Bun.file(join(cliRoot, "package.json")).json()) as {
 	readonly dependencies?: Record<string, string>;
+	readonly optionalDependencies?: Record<string, string>;
+	readonly peerDependencies?: Record<string, string>;
 	readonly private?: boolean;
 	readonly version?: string;
 };
@@ -17,8 +19,19 @@ if (packageJson.private === true) {
 	throw new Error("@skopeo/cli must not be private when preparing the npm package.");
 }
 
-if (packageJson.dependencies !== undefined && Object.keys(packageJson.dependencies).length > 0) {
-	throw new Error("@skopeo/cli is expected to publish without runtime npm dependencies.");
+const dependencyFields = {
+	dependencies: packageJson.dependencies,
+	optionalDependencies: packageJson.optionalDependencies,
+	peerDependencies: packageJson.peerDependencies,
+} as const;
+const presentDependencyFields = Object.entries(dependencyFields)
+	.filter(([, dependencies]) => dependencies !== undefined && Object.keys(dependencies).length > 0)
+	.map(([field]) => field);
+
+if (presentDependencyFields.length > 0) {
+	throw new Error(
+		`@skopeo/cli is expected to publish without runtime npm dependencies; found ${presentDependencyFields.join(", ")}.`,
+	);
 }
 
 const pack = spawnSync("npm", ["pack", "--dry-run", "--json", cliRoot], {
