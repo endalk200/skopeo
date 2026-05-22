@@ -216,6 +216,33 @@ describe("skopeo CLI", () => {
 		}).pipe(Effect.provide(TestConsole.layer)),
 	);
 
+	it.effect("keeps telemetry enabled when collector rejects OPTIONS with 404", () =>
+		Effect.gen(function* () {
+			const previousFetch = globalThis.fetch;
+			globalThis.fetch = (() => Promise.resolve(new Response(null, { status: 404 }))) as typeof fetch;
+
+			yield* Effect.gen(function* () {
+				const stderr = yield* TestConsole.errorLines;
+
+				assert.deepStrictEqual(stderr, []);
+			}).pipe(
+				Effect.provide(
+					telemetryLayerFromConfiguration({
+						telemetry: {
+							enabled: true,
+							otlpEndpoint: "http://127.0.0.1:27686",
+						},
+					}),
+				),
+				Effect.ensuring(
+					Effect.sync(() => {
+						globalThis.fetch = previousFetch;
+					}),
+				),
+			);
+		}).pipe(Effect.provide(TestConsole.layer)),
+	);
+
 	it.effect("removes the default console loggers when telemetry is disabled", () =>
 		Effect.gen(function* () {
 			const loggers = yield* Logger.CurrentLoggers;
