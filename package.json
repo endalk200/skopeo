@@ -18,7 +18,8 @@
 		"release:smoke": "bun run scripts/smoke-npm-package.ts",
 		"release:verify": "bun run scripts/verify-npm-package.ts",
 		"skopeo": "bun run apps/cli/src/bin.ts --",
-		"version-packages": "changeset version",
+		"sync-cli-version": "bun run scripts/sync-cli-version.ts",
+		"version-packages": "changeset version && bun run sync-cli-version",
 		"devtools": "devtools"
 	},
 	"devDependencies": {

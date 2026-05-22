@@ -1,17 +1,14 @@
 import { spawnSync } from "node:child_process";
-import { chmod, rm, writeFile } from "node:fs/promises";
+import { chmod, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import "./sync-cli-version.js";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(scriptDirectory, "..");
 const cliRoot = join(repoRoot, "apps", "cli");
 const distDirectory = join(cliRoot, "dist");
-const versionModulePath = join(cliRoot, "src", "version.generated.ts");
-const packageJsonPath = join(cliRoot, "package.json");
-const packageJson = (await Bun.file(packageJsonPath).json()) as { readonly version: string };
 
-await writeFile(versionModulePath, `export const VERSION = ${JSON.stringify(packageJson.version)} as const;\n`);
 await rm(distDirectory, { force: true, recursive: true });
 
 const build = spawnSync(
