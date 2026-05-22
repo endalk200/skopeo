@@ -81,9 +81,11 @@ jobs:
       - name: Stage package on npm
         id: stage
         working-directory: apps/cli
+        env:
+          PKG_VERSION: ${{ steps.package.outputs.version }}
         run: |
-          if npm view @skopeo/cli@${{ steps.package.outputs.version }} version >/dev/null 2>&1; then
-            echo "Version ${{ steps.package.outputs.version }} already exists on npm; skipping staging."
+          if npm view "@skopeo/cli@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${PKG_VERSION} already exists on npm; skipping staging."
             echo "staged=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -115,8 +117,13 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "$tag" "$GITHUB_SHA"
-          git push origin "$tag"
+
+          if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists; skipping tag push."
+          else
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "$tag"
+          fi
 
           cat > release-notes.md <<EOF
           @skopeo/cli ${VERSION}
@@ -125,4 +132,8 @@ jobs:
           Publish this GitHub Release only after approving the staged package in npm.
           EOF
 
-          gh release create "$tag" --draft --title "Skopeo CLI v${VERSION}" --notes-file release-notes.md
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "Skopeo CLI v${VERSION}" --notes-file release-notes.md
+          else
+            gh release create "$tag" --draft --title "Skopeo CLI v${VERSION}" --notes-file release-notes.md
+          fi
