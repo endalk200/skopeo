@@ -1,13 +1,32 @@
 {
 	"name": "@skopeo/cli",
 	"version": "0.0.0",
-	"private": true,
+	"description": "Skopeo code review agent CLI",
+	"private": false,
 	"type": "module",
 	"bin": {
 		"skopeo": "./dist/bin.js"
 	},
+	"files": [
+		"dist/bin.js",
+		"LICENSE",
+		"README.md"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/endalk200/skopeo.git",
+		"directory": "apps/cli"
+	},
+	"license": "MIT",
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"registry": "https://registry.npmjs.org/"
+	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json",
+		"build": "bun run ../../scripts/build-cli.ts",
 		"check-types": "tsc -p tsconfig.json --noEmit",
 		"format": "biome format --write package.json tsconfig.json src",
 		"format:check": "biome format package.json tsconfig.json src",
@@ -15,9 +34,11 @@
 		"lint:fix": "biome check --fix package.json tsconfig.json src",
 		"test": "vitest run src --passWithNoTests"
 	},
-	"dependencies": {
+	"devDependencies": {
+		"@ai-sdk/devtools": "^0.0.18",
 		"@effect/opentelemetry": "4.0.0-beta.70",
 		"@effect/platform-node": "4.0.0-beta.70",
+		"@effect/vitest": "4.0.0-beta.70",
 		"@opentelemetry/api": "^1.9.1",
 		"@opentelemetry/api-logs": "^0.218.0",
 		"@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
@@ -28,14 +49,10 @@
 		"@opentelemetry/sdk-trace-node": "^2.7.1",
 		"@opentelemetry/semantic-conventions": "^1.40.0",
 		"@skopeo/config": "workspace:*",
-		"effect": "4.0.0-beta.70"
-	},
-	"devDependencies": {
-		"@ai-sdk/devtools": "^0.0.18",
-		"@effect/vitest": "4.0.0-beta.70",
 		"@skopeo/typescript-config": "workspace:*",
 		"@types/node": "^25.9.1",
 		"ai": "^6.0.189",
+		"effect": "4.0.0-beta.70",
 		"typescript": "6.0.3",
 		"vitest": "^4.1.7"
 	}
