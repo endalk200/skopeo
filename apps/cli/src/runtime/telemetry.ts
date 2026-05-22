@@ -26,16 +26,12 @@ const otlpTraceEndpoint = (endpoint: string) => `${endpoint.replace(/\/$/, "")}/
 const checkCollector = (endpoint: string) =>
 	Effect.tryPromise({
 		try: async () => {
-			const response = await fetch(otlpTraceEndpoint(endpoint), {
+			await fetch(otlpTraceEndpoint(endpoint), {
 				method: "OPTIONS",
 				signal: AbortSignal.timeout(1_000),
 			});
 
-			if (!response.ok && response.status !== 405) {
-				throw new Error(`Collector responded with HTTP ${response.status}`);
-			}
-
-			return response;
+			return undefined;
 		},
 		catch: (cause) => new TelemetryCollectorUnavailable({ endpoint, cause }),
 	}).pipe(Effect.asVoid);
