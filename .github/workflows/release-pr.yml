@@ -59,9 +59,13 @@ jobs:
           git commit -m "chore: version packages"
           git push --force-with-lease origin HEAD:changeset-release/main
 
-          if gh pr view changeset-release/main --json number >/dev/null 2>&1; then
-            gh pr edit changeset-release/main --title "Version Packages" --body "Automated Changesets version PR."
-          elif ! gh pr create --base main --head changeset-release/main --title "Version Packages" --body "Automated Changesets version PR."; then
+          warn_blocked() {
             pr_url="https://github.com/${GITHUB_REPOSITORY}/pull/new/changeset-release/main"
-            echo "::warning title=Release PR creation blocked::The release branch was pushed, but GitHub blocked this token from creating pull requests. Configure RELEASE_PR_TOKEN or enable the repository setting that allows GitHub Actions to create pull requests, then open ${pr_url}."
+            echo "::warning title=Release PR update blocked::The release branch was pushed, but GitHub blocked this token from creating or updating pull requests. Configure RELEASE_PR_TOKEN or enable the repository setting that allows GitHub Actions to create pull requests, then open ${pr_url}."
+          }
+
+          if gh pr view changeset-release/main --json number >/dev/null 2>&1; then
+            gh pr edit changeset-release/main --title "Version Packages" --body "Automated Changesets version PR." || warn_blocked
+          elif ! gh pr create --base main --head changeset-release/main --title "Version Packages" --body "Automated Changesets version PR."; then
+            warn_blocked
           fi
