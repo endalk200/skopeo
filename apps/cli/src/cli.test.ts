@@ -222,8 +222,10 @@ describe("skopeo CLI", () => {
 			globalThis.fetch = (() => Promise.resolve(new Response(null, { status: 404 }))) as typeof fetch;
 
 			yield* Effect.gen(function* () {
+				const loggers = yield* Logger.CurrentLoggers;
 				const stderr = yield* TestConsole.errorLines;
 
+				assert.strictEqual(loggers.size, 1);
 				assert.deepStrictEqual(stderr, []);
 			}).pipe(
 				Effect.provide(
