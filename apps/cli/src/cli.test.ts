@@ -13,7 +13,7 @@ import { Effect, FileSystem, Layer, Logger, Path, Stdio, Terminal } from "effect
 import { TestConsole } from "effect/testing";
 import { CliOutput } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { configValidationHasFailures, formatConfigValidationReport } from "./cli/commands/config/command.js";
+import { configValidationHasFailures, formatConfigValidationReport } from "./cli/commands/config/validate.cmd.js";
 import { runCliWithArgs } from "./cli/run.js";
 import { handleCliFailure } from "./runtime/failures.js";
 import {
