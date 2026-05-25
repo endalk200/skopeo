@@ -184,6 +184,12 @@ export const resolveConfigPath = (
 		});
 	}).pipe(
 		Effect.tap((path) =>
+			Effect.annotateCurrentSpan({
+				"skopeo.config.path": path.path,
+				"skopeo.config.path_source": path.source,
+			}),
+		),
+		Effect.tap((path) =>
 			Effect.logDebug("Resolved config path", {
 				path: path.path,
 				source: path.source,
@@ -208,13 +214,13 @@ export const validateSkopeoConfigFromEnvironment = (env: Record<string, string |
 		const sources = yield* resolveConfigSources(env);
 
 		return yield* validateResolvedConfigSources(sources);
-	});
+	}).pipe(Effect.withSpan("skopeo.config.validate"));
 
 export const validateSkopeoConfig = Effect.gen(function* () {
 	const sources = yield* resolveConfigSources(process.env);
 
 	return yield* validateResolvedConfigSources(sources);
-});
+}).pipe(Effect.withSpan("skopeo.config.validate"));
 
 const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 	Effect.gen(function* () {
@@ -236,7 +242,7 @@ const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 
 		const effectiveResult = yield* Effect.result(parseEffectiveConfig(sources));
 
-		return {
+		const report = {
 			path: sources.path,
 			file: fileStatus,
 			env: envStatus,
@@ -245,6 +251,16 @@ const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 				: invalidStatus(formatConfigError(effectiveResult.failure)),
 			config: Result.isSuccess(effectiveResult) ? effectiveResult.success : undefined,
 		};
+
+		yield* Effect.annotateCurrentSpan({
+			"skopeo.config.valid":
+				report.file._tag !== "invalid" && report.env._tag !== "invalid" && report.effective._tag !== "invalid",
+			"skopeo.config.file_validation_status": report.file._tag,
+			"skopeo.config.env_validation_status": report.env._tag,
+			"skopeo.config.effective_validation_status": report.effective._tag,
+		});
+
+		return report;
 	});
 
 export const initSkopeoConfigFromEnvironment = (env: Record<string, string | undefined>) =>
@@ -286,12 +302,14 @@ const initSkopeoConfigAtPath = (path: ConfigPathResolution) =>
 			source: path.source,
 		});
 
+		yield* Effect.annotateCurrentSpan({
+			"skopeo.config.created": true,
+		});
+
 		return path;
 	}).pipe(
 		Effect.withSpan("skopeo.config.write_file", {
 			attributes: {
-				"skopeo.config.path": path.path,
-				"skopeo.config.path_source": path.source,
 				"skopeo.config.parent_directory": dirname(path.path),
 				"file.operation": "write",
 			},
@@ -357,7 +375,7 @@ const loadFileProvider = (
 				return yield* Effect.fail(new ExplicitConfigFileNotFound({ path: path.path }));
 			}
 			yield* Effect.annotateCurrentSpan({
-				"skopeo.config.file_status": "missing_default",
+				"skopeo.config.file_presence": "missing_default",
 			});
 			return {
 				_tag: "missingDefault",
@@ -386,7 +404,7 @@ const loadFileProvider = (
 		});
 
 		yield* Effect.annotateCurrentSpan({
-			"skopeo.config.file_status": "present",
+			"skopeo.config.file_presence": "present",
 		});
 
 		return {
