@@ -11,7 +11,7 @@ export const pathCommand = Command.make("path").pipe(
 
 			yield* Console.log(path.path);
 		}).pipe(
-			Effect.withSpan("skopeo.config.path", {
+			Effect.withSpan("skopeo.cli.config.path", {
 				attributes: {
 					"cli.command": "config path",
 					"skopeo.command": "config path",

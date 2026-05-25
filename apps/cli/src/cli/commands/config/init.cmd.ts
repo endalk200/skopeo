@@ -11,7 +11,7 @@ export const initCommand = Command.make("init").pipe(
 
 			yield* Console.log(`Created Skopeo Configuration at ${path.path}.`);
 		}).pipe(
-			Effect.withSpan("skopeo.config.init", {
+			Effect.withSpan("skopeo.cli.config.init", {
 				attributes: {
 					"cli.command": "config init",
 					"skopeo.command": "config init",
