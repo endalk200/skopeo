@@ -68,7 +68,7 @@ Resolve all covered packages for code owned by `apps/cli`:
 opensrc path --cwd apps/cli effect @effect/platform-node ai @ai-sdk/devtools
 ```
 
-NOTE: Make sure you use correct path to the packages.json containing the dependency or package you are interested in.
+NOTE: Make sure you use the correct path to the package.json containing the dependency or package you are interested in.
 
 Resolve and search one package:
 
