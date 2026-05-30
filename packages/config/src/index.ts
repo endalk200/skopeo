@@ -214,7 +214,7 @@ export const validateSkopeoConfigFromEnvironment = (env: Record<string, string |
 		const sources = yield* resolveConfigSources(env);
 
 		return yield* validateResolvedConfigSources(sources);
-	}).pipe(Effect.withSpan("skopeo.config.validate"));
+	}).pipe(Effect.withSpan("skopeo.config.validate.from_env"));
 
 export const validateSkopeoConfig = Effect.gen(function* () {
 	const sources = yield* resolveConfigSources(process.env);
