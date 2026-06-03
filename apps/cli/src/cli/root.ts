@@ -1,8 +1,9 @@
 import { Command } from "effect/unstable/cli";
 import { configCommand } from "./commands/config/index.js";
+import { reviewCommand } from "./commands/review/review.cmd.js";
 import { versionCommand } from "./commands/version.cmd.js";
 
-export const commandCatalog = [versionCommand, configCommand] as const;
+export const commandCatalog = [versionCommand, configCommand, reviewCommand] as const;
 
 export const makeRootCommand = (commands: typeof commandCatalog = commandCatalog) =>
 	Command.make("skopeo").pipe(
