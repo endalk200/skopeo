@@ -45,7 +45,7 @@ export const executeWithAiSdk = (request: ReviewModelRequest) =>
 			const agent = new ToolLoopAgent({
 				model: request.profile.makeModel(),
 				instructions: request.profile.systemPrompt,
-				temperature: request.profile.temperature,
+				...(request.profile.temperature === undefined ? {} : { temperature: request.profile.temperature }),
 				stopWhen: stepCountIs(request.profile.stepBudget),
 				tools: request.tools,
 				experimental_context: request.toolContext,

@@ -44,4 +44,4 @@ export const BashToolOutput = Schema.Struct({
 export type BashToolOutput = typeof BashToolOutput.Type;
 
 export const standardSchema = <S extends Schema.Decoder<unknown>>(schema: S): unknown =>
-	Schema.toStandardSchemaV1(schema);
+	Schema.toStandardJSONSchemaV1(Schema.toStandardSchemaV1(schema));

@@ -7,7 +7,6 @@ export const fastModelConfig: Pick<
 > = {
 	modelId: "gpt-5.5" as const,
 	reasoningEffort: "low" as const,
-	temperature: 0.1,
 	stepBudget: 20,
 	makeModel: () => openai("gpt-5.5"),
 };
