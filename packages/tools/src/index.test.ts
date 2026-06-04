@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Schema } from "effect";
+import { Effect, Fiber, Schema } from "effect";
 import {
 	BashToolInput,
 	BashToolOutput,
@@ -17,6 +17,29 @@ import {
 } from "./index.js";
 
 const tempRepo = () => mkdtemp(join(tmpdir(), "skopeo-tools-"));
+
+const waitUntil = async (predicate: () => boolean | Promise<boolean>, label: string) => {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < 2_000) {
+		if (await predicate()) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+	throw new Error(`Timed out waiting for ${label}.`);
+};
+
+const isProcessAlive = (pid: number): boolean => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (cause) {
+		if ((cause as NodeJS.ErrnoException).code === "ESRCH") {
+			return false;
+		}
+		throw cause;
+	}
+};
 
 describe("@skopeo/tools", () => {
 	it.effect("reads whole files, line ranges, and default line windows", () =>
@@ -123,6 +146,52 @@ describe("@skopeo/tools", () => {
 				runBash({ command: "sleep 2", timeoutMs: 10 }, { repositoryRoot: root }),
 			);
 			assert.strictEqual(timedOut.timedOut, true);
+
+			const selfTerminated = await Effect.runPromise(
+				runBash({ command: "kill -TERM $$" }, { repositoryRoot: root }),
+			);
+			assert.strictEqual(selfTerminated.timedOut, false);
+		}),
+	);
+
+	it.effect("fails failed shell spawns and kills interrupted bash children", () =>
+		Effect.promise(async () => {
+			const root = await tempRepo();
+			const previousShell = process.env.SHELL;
+			process.env.SHELL = join(root, "missing-shell");
+			try {
+				const failedSpawn = await Effect.runPromiseExit(runBash({ command: "true" }, { repositoryRoot: root }));
+				assert.strictEqual(failedSpawn._tag, "Failure");
+			} finally {
+				if (previousShell === undefined) {
+					delete process.env.SHELL;
+				} else {
+					process.env.SHELL = previousShell;
+				}
+			}
+
+			const pidFile = join(root, ".skopeo-child-pid");
+			const fiber = Effect.runFork(
+				runBash({ command: "printf $$ > .skopeo-child-pid; sleep 60" }, { repositoryRoot: root }),
+			);
+			let childPid = 0;
+			try {
+				await waitUntil(async () => {
+					try {
+						childPid = Number((await readFile(pidFile, "utf8")).trim());
+						return Number.isInteger(childPid) && childPid > 0;
+					} catch {
+						return false;
+					}
+				}, "bash child pid");
+
+				await Effect.runPromise(Fiber.interrupt(fiber));
+				await waitUntil(() => !isProcessAlive(childPid), "bash child exit after interruption");
+			} finally {
+				if (childPid > 0 && isProcessAlive(childPid)) {
+					process.kill(childPid, "SIGKILL");
+				}
+			}
 		}),
 	);
 
