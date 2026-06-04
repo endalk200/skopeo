@@ -181,27 +181,31 @@ describe("@skopeo/tools", () => {
 			assert.strictEqual(output.truncated, true);
 			assert.isAtMost(Buffer.byteLength(output.content, "utf8"), wholeFileLimitBytes);
 			assert.include(output.content, "[truncated]");
-			assert.doesNotThrow(() => Buffer.from(output.content, "utf8").toString("utf8"));
+			assert.notInclude(output.content, "\uFFFD");
 		}),
 	);
 
 	it.effect("truncates line range output with the same byte limit as whole files", () =>
 		Effect.gen(function* () {
 			const root = yield* tempRepoScoped;
-			yield* writeText(
-				join(root, "large.txt"),
-				Array.from({ length: 1_000 }, () => "x".repeat(1_000)).join("\n"),
-			);
+			const content = Array.from({ length: 1_000 }, () => "x".repeat(1_000)).join("\n");
+			yield* writeText(join(root, "large.txt"), content);
 
 			const output = yield* readPath(
 				{ path: "large.txt", startLine: 1, endLine: 1_000 },
 				{ repositoryRoot: root },
 			);
+			const expected = truncateUtf8(
+				content
+					.split(/\r?\n/)
+					.map((line, index) => `${index + 1}: ${line}`)
+					.join("\n"),
+				wholeFileLimitBytes,
+			);
 
 			assert.strictEqual(output.kind, "file");
 			assert.strictEqual(output.truncated, true);
-			assert.isAtMost(Buffer.byteLength(output.content, "utf8"), wholeFileLimitBytes);
-			assert.include(output.content, "[truncated]");
+			assert.strictEqual(output.content, expected.value);
 		}),
 	);
 
@@ -556,7 +560,13 @@ describe("@skopeo/tools", () => {
 			);
 
 			assert.strictEqual(stdout.stdoutTruncated, true);
+			assert.strictEqual(stdout.stderrTruncated, false);
+			assert.isAtMost(Buffer.byteLength(stdout.stdout, "utf8"), bashOutputLimitBytes);
+			assert.strictEqual(stdout.stderr, "");
 			assert.strictEqual(stderr.stderrTruncated, true);
+			assert.strictEqual(stderr.stdoutTruncated, false);
+			assert.isAtMost(Buffer.byteLength(stderr.stderr, "utf8"), bashOutputLimitBytes);
+			assert.strictEqual(stderr.stdout, "");
 			assert.strictEqual(normalizeTimeout(999_999), 120_000);
 			assert.strictEqual(Schema.decodeUnknownExit(BashToolInput)({ command: "pwd" })._tag, "Success");
 		}),
