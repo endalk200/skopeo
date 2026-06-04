@@ -42,7 +42,10 @@ export const truncateUtf8 = (
 
 export const isInsidePath = (root: string, candidate: string): boolean => {
 	const relativePath = relative(root, candidate);
-	return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
+	return (
+		relativePath === "" ||
+		(!isAbsolute(relativePath) && relativePath !== ".." && !relativePath.startsWith(`..${sep}`))
+	);
 };
 
 export const resolveRepositoryPath = (
