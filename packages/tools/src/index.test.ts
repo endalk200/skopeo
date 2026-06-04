@@ -502,14 +502,14 @@ describe("@skopeo/tools", () => {
 		}),
 	);
 
-	it.effect("fails failed shell spawns and kills interrupted bash children", () =>
+	it.effect("uses pinned bash shell and kills interrupted bash children", () =>
 		Effect.gen(function* () {
 			const root = yield* tempRepoScoped;
 			const previousShell = process.env.SHELL;
 			process.env.SHELL = join(root, "missing-shell");
 			try {
-				const failedSpawn = yield* Effect.flip(runBash({ command: "true" }, { repositoryRoot: root }));
-				assert.strictEqual(failedSpawn._tag, "ToolExecutionError");
+				const output = yield* runBash({ command: "printf bash" }, { repositoryRoot: root });
+				assert.strictEqual(output.stdout, "bash");
 			} finally {
 				if (previousShell === undefined) {
 					delete process.env.SHELL;

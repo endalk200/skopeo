@@ -67,8 +67,7 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 		const timeoutMs = normalizeTimeout(input.timeoutMs);
 
 		return yield* Effect.gen(function* () {
-			const shell = process.env.SHELL?.trim() || "/bin/sh";
-			const handle = yield* ChildProcess.make(shell, ["-lc", input.command], {
+			const handle = yield* ChildProcess.make("/bin/bash", ["-lc", input.command], {
 				cwd: workingDirectory,
 				env: process.env,
 				extendEnv: false,
