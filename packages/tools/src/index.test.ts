@@ -185,6 +185,26 @@ describe("@skopeo/tools", () => {
 		}),
 	);
 
+	it.effect("truncates line range output with the same byte limit as whole files", () =>
+		Effect.gen(function* () {
+			const root = yield* tempRepoScoped;
+			yield* writeText(
+				join(root, "large.txt"),
+				Array.from({ length: 1_000 }, () => "x".repeat(1_000)).join("\n"),
+			);
+
+			const output = yield* readPath(
+				{ path: "large.txt", startLine: 1, endLine: 1_000 },
+				{ repositoryRoot: root },
+			);
+
+			assert.strictEqual(output.kind, "file");
+			assert.strictEqual(output.truncated, true);
+			assert.isAtMost(Buffer.byteLength(output.content, "utf8"), wholeFileLimitBytes);
+			assert.include(output.content, "[truncated]");
+		}),
+	);
+
 	it.effect("executes read tool with repository context and rejects missing context", () =>
 		Effect.gen(function* () {
 			const root = yield* tempRepoScoped;

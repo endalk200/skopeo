@@ -67,6 +67,25 @@ describe("@skopeo/code-review-agent", () => {
 		}),
 	);
 
+	it.effect("keeps staged rename entries intact when the destination is deleted in the worktree", () =>
+		Effect.promise(async () => {
+			const root = await tempGitRepo();
+			await writeFile(join(root, "old.ts"), "old\n");
+			await execFileAsync("git", ["add", "old.ts"], { cwd: root });
+			await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
+
+			await execFileAsync("git", ["mv", "old.ts", "new.ts"], { cwd: root });
+			await execFileAsync("rm", ["new.ts"], { cwd: root });
+
+			const target = await Effect.runPromise(collectReviewTarget(root));
+
+			assert.deepStrictEqual(
+				target.files.map((file) => `${file.status} ${file.path}`),
+				["R new.ts"],
+			);
+		}),
+	);
+
 	it.effect("fails outside Git and formats empty/no-findings output exactly", () =>
 		Effect.promise(async () => {
 			const dir = await mkdtemp(join(tmpdir(), "skopeo-nongit-"));

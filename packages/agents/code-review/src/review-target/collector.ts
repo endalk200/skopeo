@@ -37,16 +37,16 @@ const runGit = (args: ReadonlyArray<string>, cwd: string) =>
 const statusFromMarker = (marker: string): ReviewTargetFile["status"] =>
 	marker.includes("?")
 		? "?"
-		: marker.includes("A")
-			? "A"
-			: marker.includes("D")
-				? "D"
-				: marker.includes("R")
-					? "R"
-					: marker.includes("C")
-						? "C"
-						: marker.includes("!")
-							? "!"
+		: marker.includes("!")
+			? "!"
+			: marker.includes("R")
+				? "R"
+				: marker.includes("C")
+					? "C"
+					: marker.includes("A")
+						? "A"
+						: marker.includes("D")
+							? "D"
 							: "M";
 
 const parseStatusEntry = (entry: string): ReviewTargetFile | undefined => {
