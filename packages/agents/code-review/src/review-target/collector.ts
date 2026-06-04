@@ -34,14 +34,8 @@ const runGit = (args: ReadonlyArray<string>, cwd: string) =>
 			}),
 	});
 
-const parseStatusLine = (line: string): ReviewTargetFile | undefined => {
-	if (line.trim() === "") {
-		return undefined;
-	}
-	const marker = line.slice(0, 2);
-	const rawPath = line.slice(3);
-	const renamedPath = rawPath.includes(" -> ") ? (rawPath.split(" -> ").at(-1) ?? rawPath) : rawPath;
-	const status = marker.includes("?")
+const statusFromMarker = (marker: string): ReviewTargetFile["status"] =>
+	marker.includes("?")
 		? "?"
 		: marker.includes("A")
 			? "A"
@@ -51,8 +45,17 @@ const parseStatusLine = (line: string): ReviewTargetFile | undefined => {
 					? "R"
 					: marker.includes("C")
 						? "C"
-						: "M";
-	return { status, path: renamedPath };
+						: marker.includes("!")
+							? "!"
+							: "M";
+
+const parseStatusEntry = (entry: string): ReviewTargetFile | undefined => {
+	if (entry === "" || entry.length < 4) {
+		return undefined;
+	}
+	const marker = entry.slice(0, 2);
+	const path = entry.slice(3);
+	return { status: statusFromMarker(marker), path };
 };
 
 export const formatChangedFileSummary = (files: ReadonlyArray<ReviewTargetFile>): string =>
@@ -72,12 +75,20 @@ export const collectReviewTarget = (cwd = process.cwd()): Effect.Effect<ReviewTa
 			);
 		}
 
-		const statusOutput = yield* runGit(["status", "--porcelain=v1", "--untracked-files=all"], root);
+		const statusOutput = yield* runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"], root);
 		const filesByPath = new Map<string, ReviewTargetFile>();
-		for (const line of statusOutput.split(/\r?\n/)) {
-			const parsed = parseStatusLine(line);
+		const statusEntries = statusOutput.split("\0");
+		for (let index = 0; index < statusEntries.length; index++) {
+			const entry = statusEntries[index];
+			if (entry === undefined) {
+				continue;
+			}
+			const parsed = parseStatusEntry(entry);
 			if (parsed !== undefined) {
 				filesByPath.set(parsed.path, parsed);
+				if (parsed.status === "R" || parsed.status === "C") {
+					index += 1;
+				}
 			}
 		}
 		const files = [...filesByPath.values()].sort((a, b) => a.path.localeCompare(b.path));
