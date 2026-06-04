@@ -27,25 +27,31 @@ export class CodeReviewAgent extends Context.Service<CodeReviewAgent, CodeReview
 						}
 
 						const prompt = defaultReviewProfile.buildUserPrompt(target.changedFileSummary);
-						const toolRuntime = yield* makeReviewTools();
-						return yield* executor
-							.execute({
-								profile: defaultReviewProfile,
-								prompt,
-								target,
-								tools: toolRuntime.tools,
-								toolContext: { repositoryRoot: target.repositoryRoot },
-							})
-							.pipe(
-								Effect.ensuring(toolRuntime.close),
-								Effect.mapError(
-									(cause) =>
-										new CodeReviewAgentRuntimeError({
-											message: "Code Review Agent failed to complete the review.",
-											cause,
-										}),
-								),
-							);
+						return yield* Effect.scoped(
+							Effect.gen(function* () {
+								const toolRuntime = yield* Effect.acquireRelease(
+									makeReviewTools(),
+									(runtime) => runtime.close,
+								);
+								return yield* executor
+									.execute({
+										profile: defaultReviewProfile,
+										prompt,
+										target,
+										tools: toolRuntime.tools,
+										toolContext: { repositoryRoot: target.repositoryRoot },
+									})
+									.pipe(
+										Effect.mapError(
+											(cause) =>
+												new CodeReviewAgentRuntimeError({
+													message: "Code Review Agent failed to complete the review.",
+													cause,
+												}),
+										),
+									);
+							}),
+						);
 					}),
 			};
 		}),

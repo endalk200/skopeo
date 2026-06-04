@@ -45,6 +45,28 @@ describe("@skopeo/code-review-agent", () => {
 		}),
 	);
 
+	it.effect("collects decoded porcelain paths and rename destinations", () =>
+		Effect.promise(async () => {
+			const root = await tempGitRepo();
+			const accentedPath = "\u00e9.ts";
+			await execFileAsync("git", ["config", "core.quotePath", "true"], { cwd: root });
+			await writeFile(join(root, "old.ts"), "old\n");
+			await execFileAsync("git", ["add", "old.ts"], { cwd: root });
+			await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
+
+			await execFileAsync("git", ["mv", "old.ts", "new name.ts"], { cwd: root });
+			await writeFile(join(root, accentedPath), "new\n");
+
+			const target = await Effect.runPromise(collectReviewTarget(root));
+			const filesByPath = new Map(target.files.map((file) => [file.path, file]));
+
+			assert.strictEqual(target.changedFileCount, 2);
+			assert.strictEqual(filesByPath.get("new name.ts")?.status, "R");
+			assert.strictEqual(filesByPath.get(accentedPath)?.status, "?");
+			assert.strictEqual(filesByPath.has("old.ts"), false);
+		}),
+	);
+
 	it.effect("fails outside Git and formats empty/no-findings output exactly", () =>
 		Effect.promise(async () => {
 			const dir = await mkdtemp(join(tmpdir(), "skopeo-nongit-"));
