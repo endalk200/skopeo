@@ -41,7 +41,7 @@ export class BashTool extends Context.Service<BashTool, BashToolServiceShape>()(
 }
 
 export const normalizeTimeout = (timeoutMs: number | undefined) => {
-	if (timeoutMs === undefined) {
+	if (timeoutMs === undefined || !Number.isFinite(timeoutMs)) {
 		return defaultBashTimeoutMs;
 	}
 	return Math.max(1, Math.min(Math.floor(timeoutMs), maxBashTimeoutMs));
