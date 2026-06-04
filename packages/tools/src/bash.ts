@@ -1,6 +1,7 @@
-import { spawn } from "node:child_process";
+import { NodeServices } from "@effect/platform-node";
 import type { Tool } from "ai";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Duration, Effect, Fiber, Layer, Schema, Stream } from "effect";
+import { ChildProcess } from "effect/unstable/process";
 import { ToolExecutionError } from "./errors.js";
 import { BashToolInput, type BashToolOutput, RepositoryToolContext, standardSchema } from "./schema.js";
 import {
@@ -12,6 +13,16 @@ import {
 	resolveRepositoryPath,
 	truncateUtf8,
 } from "./shared.js";
+
+type LimitedOutput = {
+	readonly value: string;
+	readonly truncated: boolean;
+};
+
+type ExitResult = {
+	readonly exitCode: number;
+	readonly timedOut: boolean;
+};
 
 export type BashToolServiceShape = {
 	readonly run: (
@@ -36,6 +47,18 @@ export const normalizeTimeout = (timeoutMs: number | undefined) => {
 	return Math.max(1, Math.min(Math.floor(timeoutMs), maxBashTimeoutMs));
 };
 
+const collectLimitedUtf8 = <E, R>(stream: Stream.Stream<Uint8Array, E, R>, limitBytes: number) =>
+	stream.pipe(
+		Stream.decodeText,
+		Stream.runFold(
+			() => ({ value: "", truncated: false }) as LimitedOutput,
+			(output, chunk) => (output.truncated ? output : truncateUtf8(`${output.value}${chunk}`, limitBytes)),
+		),
+		Effect.mapError(
+			(cause) => new ToolExecutionError({ message: `Unable to read command output: ${String(cause)}`, cause }),
+		),
+	);
+
 export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 	Effect.gen(function* () {
 		yield* rejectBlockedCommand(input.command);
@@ -43,70 +66,61 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 		yield* requireDirectory(workingDirectory);
 		const timeoutMs = normalizeTimeout(input.timeoutMs);
 
-		return yield* Effect.callback<BashToolOutput, ToolExecutionError>((resume) => {
+		return yield* Effect.gen(function* () {
 			const shell = process.env.SHELL?.trim() || "/bin/sh";
-			const child = spawn(shell, ["-lc", input.command], {
+			const handle = yield* ChildProcess.make(shell, ["-lc", input.command], {
 				cwd: workingDirectory,
 				env: process.env,
-				stdio: ["ignore", "pipe", "pipe"],
+				extendEnv: false,
+				forceKillAfter: "2 seconds",
+				stdin: "ignore",
+				stdout: "pipe",
+				stderr: "pipe",
 			});
-			let completed = false;
-			let timedOut = false;
-			let stdout = "";
-			let stderr = "";
-			const timer = setTimeout(() => {
-				timedOut = true;
-				child.kill("SIGTERM");
-			}, timeoutMs);
-			const finish = (effect: Effect.Effect<BashToolOutput, ToolExecutionError>) => {
-				if (completed) {
-					return;
-				}
-				completed = true;
-				clearTimeout(timer);
-				resume(effect);
-			};
 
-			child.stdout?.setEncoding("utf8");
-			child.stderr?.setEncoding("utf8");
-			child.stdout?.on("data", (chunk) => {
-				stdout += String(chunk);
-			});
-			child.stderr?.on("data", (chunk) => {
-				stderr += String(chunk);
-			});
-			child.on("error", (cause) => {
-				finish(
-					Effect.fail(new ToolExecutionError({ message: `Unable to run command: ${cause.message}`, cause })),
-				);
-			});
-			child.on("close", (code, signal) => {
-				const stdoutResult = truncateUtf8(stdout, bashOutputLimitBytes);
-				const stderrResult = truncateUtf8(stderr, bashOutputLimitBytes);
-				finish(
-					Effect.succeed({
-						exitCode: code ?? (signal === null ? 0 : 1),
-						stdout: stdoutResult.value,
-						stderr: stderrResult.value,
-						stdoutTruncated: stdoutResult.truncated,
-						stderrTruncated: stderrResult.truncated,
-						timedOut,
+			const stdoutFiber = yield* collectLimitedUtf8(handle.stdout, bashOutputLimitBytes).pipe(Effect.forkScoped);
+			const stderrFiber = yield* collectLimitedUtf8(handle.stderr, bashOutputLimitBytes).pipe(Effect.forkScoped);
+			const exit = yield* Effect.race(
+				handle.exitCode.pipe(
+					Effect.match({
+						onFailure: () => ({ exitCode: 1, timedOut: false }) satisfies ExitResult,
+						onSuccess: (exitCode) => ({ exitCode: Number(exitCode), timedOut: false }) satisfies ExitResult,
 					}),
-				);
-			});
-			return Effect.sync(() => {
-				if (completed) {
-					return;
-				}
-				completed = true;
-				clearTimeout(timer);
-				child.kill("SIGTERM");
-			});
-		});
+				),
+				Effect.sleep(Duration.millis(timeoutMs)).pipe(
+					Effect.as({ exitCode: 1, timedOut: true } satisfies ExitResult),
+				),
+			);
+			if (exit.timedOut) {
+				yield* handle.kill({ killSignal: "SIGTERM", forceKillAfter: "2 seconds" }).pipe(Effect.ignore);
+			}
+			const stdoutResult = yield* Fiber.join(stdoutFiber);
+			const stderrResult = yield* Fiber.join(stderrFiber);
+
+			return {
+				exitCode: exit.exitCode,
+				stdout: stdoutResult.value,
+				stderr: stderrResult.value,
+				stdoutTruncated: stdoutResult.truncated,
+				stderrTruncated: stderrResult.truncated,
+				timedOut: exit.timedOut,
+			};
+		}).pipe(
+			Effect.scoped,
+			Effect.provide(NodeServices.layer),
+			Effect.mapError((cause) =>
+				cause instanceof ToolExecutionError
+					? cause
+					: new ToolExecutionError({ message: `Unable to run command: ${String(cause)}`, cause }),
+			),
+		);
 	});
 
 export const makeBashTool = (
-	runEffect: <A, E>(effect: Effect.Effect<A, E, BashTool>) => Promise<A>,
+	runEffect: <A, E>(
+		effect: Effect.Effect<A, E, BashTool>,
+		options?: { readonly signal?: AbortSignal | undefined },
+	) => Promise<A>,
 ): Tool<BashToolInput, BashToolOutput> => ({
 	description: "Run a shell command in the repository root or a repository-contained working directory.",
 	inputSchema: standardSchema(BashToolInput) as unknown as Tool<BashToolInput, BashToolOutput>["inputSchema"],
@@ -117,6 +131,11 @@ export const makeBashTool = (
 		} catch {
 			throw new Error("Missing repository tool context.");
 		}
-		return await runEffect(Effect.flatMap(BashTool, (service) => service.run(input, context)));
+		return await runEffect(
+			Effect.flatMap(BashTool, (service) => service.run(input, context)),
+			{
+				signal: options.abortSignal,
+			},
+		);
 	},
 });
