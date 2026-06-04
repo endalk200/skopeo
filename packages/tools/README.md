@@ -24,11 +24,15 @@ Creates an AI SDK `read` tool backed by the `ReadTool` service.
 
 The tool reads files with optional line ranges, or lists the immediate children of a directory. Paths are resolved inside the repository root from the repository tool context.
 
+AI SDK abort signals are forwarded to the supplied `runEffect` function.
+
 ### `makeBashTool(runEffect)`
 
 Creates an AI SDK `bash` tool backed by the `BashTool` service.
 
 The tool runs a shell command in the repository root or in a repository-contained working directory. The requested timeout is clamped by package policy, and returned stdout/stderr are truncated.
+
+AI SDK abort signals are forwarded to the supplied `runEffect` function. When the runner passes the signal to Effect, aborting a `bash` tool call interrupts the scoped process execution and triggers child-process cleanup.
 
 ### `RepositoryToolContextType`
 
@@ -57,8 +61,10 @@ const ToolRuntimeLayer = Layer.mergeAll(ReadTool.Live, BashTool.Live);
 export const makeReviewTools = () =>
   Effect.sync(() => {
     const runtime = ManagedRuntime.make(ToolRuntimeLayer);
-    const runEffect = <A, E>(effect: Effect.Effect<A, E, ReadTool | BashTool>) =>
-      runtime.runPromise(effect);
+    const runEffect = <A, E>(
+      effect: Effect.Effect<A, E, ReadTool | BashTool>,
+      options?: { readonly signal?: AbortSignal | undefined },
+    ) => runtime.runPromise(effect, options);
 
     return {
       tools: {

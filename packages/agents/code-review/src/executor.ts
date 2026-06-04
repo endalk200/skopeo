@@ -29,7 +29,10 @@ export const ToolRuntimeLayer = Layer.mergeAll(ReadTool.Live, BashTool.Live);
 export const makeReviewTools = () =>
 	Effect.sync(() => {
 		const runtime = ManagedRuntime.make(ToolRuntimeLayer);
-		const runEffect = <A, E>(effect: Effect.Effect<A, E, ReadTool | BashTool>) => runtime.runPromise(effect);
+		const runEffect = <A, E>(
+			effect: Effect.Effect<A, E, ReadTool | BashTool>,
+			options?: { readonly signal?: AbortSignal | undefined },
+		) => runtime.runPromise(effect, options);
 		return {
 			tools: {
 				read: makeReadTool(runEffect),

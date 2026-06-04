@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Fiber, Schema } from "effect";
+import { TestClock } from "effect/testing";
 import { normalizeTimeout, runBash } from "./bash.js";
 import { ToolInputError } from "./errors.js";
 import { BashTool, makeBashTool, makeReadTool, ReadTool } from "./index.js";
@@ -216,6 +217,35 @@ describe("@skopeo/tools", () => {
 		}),
 	);
 
+	it.effect("passes read tool abort signals to the effect runner", () =>
+		Effect.gen(function* () {
+			const root = yield* tempRepoScoped;
+			yield* writeText(join(root, "file.txt"), "content");
+			const abortController = new AbortController();
+			let capturedSignal: AbortSignal | undefined;
+			const tool = makeReadTool((effect, options) => {
+				capturedSignal = options?.signal;
+				return Effect.runPromise(effect.pipe(Effect.provide(ReadTool.Live)));
+			});
+			const execute = tool.execute;
+			if (execute === undefined) {
+				assert.fail("read tool execute function is missing");
+			}
+
+			const output = yield* Effect.tryPromise({
+				try: async () =>
+					(await execute({ path: "file.txt" }, {
+						abortSignal: abortController.signal,
+						experimental_context: { repositoryRoot: root },
+					} as never)) as ReadToolOutputType,
+				catch: (cause) => cause,
+			});
+
+			assert.strictEqual(output.content, "content");
+			assert.strictEqual(capturedSignal, abortController.signal);
+		}),
+	);
+
 	it.effect("makeBashTool dispatches through runEffect and requires the live layer", () =>
 		Effect.gen(function* () {
 			const root = yield* tempRepoScoped;
@@ -260,6 +290,57 @@ describe("@skopeo/tools", () => {
 			);
 			assert.instanceOf(missingLayer, Error);
 			assert.include(missingLayer.message, "Service not found: @skopeo/tools/BashTool");
+		}),
+	);
+
+	it.effect("aborts in-flight bash tool execution through the effect runner signal", () =>
+		Effect.gen(function* () {
+			const root = yield* tempRepoScoped;
+			const pidFile = join(root, ".skopeo-aborted-tool-pid");
+			const abortController = new AbortController();
+			const tool = makeBashTool((effect, options) =>
+				Effect.runPromise(effect.pipe(Effect.provide(BashTool.Live)), options),
+			);
+			const execute = tool.execute;
+			if (execute === undefined) {
+				assert.fail("bash tool execute function is missing");
+			}
+
+			const promise = execute({ command: "printf $$ > .skopeo-aborted-tool-pid; sleep 60" }, {
+				abortSignal: abortController.signal,
+				experimental_context: { repositoryRoot: root },
+			} as never);
+			let childPid = 0;
+			try {
+				yield* Effect.promise(() =>
+					waitUntil(async () => {
+						try {
+							childPid = Number((await readFile(pidFile, "utf8")).trim());
+							return Number.isInteger(childPid) && childPid > 0;
+						} catch {
+							return false;
+						}
+					}, "aborted bash tool child pid"),
+				);
+
+				abortController.abort();
+				const aborted = yield* Effect.promise(async () => {
+					try {
+						await promise;
+						return false;
+					} catch {
+						return true;
+					}
+				});
+				assert.strictEqual(aborted, true);
+				yield* Effect.promise(() =>
+					waitUntil(() => !isProcessAlive(childPid), "bash tool child exit after abort"),
+				);
+			} finally {
+				if (childPid > 0 && isProcessAlive(childPid)) {
+					process.kill(childPid, "SIGKILL");
+				}
+			}
 		}),
 	);
 
@@ -310,7 +391,25 @@ describe("@skopeo/tools", () => {
 				);
 				assert.strictEqual(outside._tag, "RepositoryBoundaryError");
 
-				const timedOut = yield* runBash({ command: "sleep 2", timeoutMs: 10 }, { repositoryRoot: root });
+				const timeoutPidFile = join(root, ".skopeo-timeout-pid");
+				const timeoutFiber = yield* Effect.forkChild(
+					runBash(
+						{ command: "printf $$ > .skopeo-timeout-pid; sleep 2", timeoutMs: 10 },
+						{ repositoryRoot: root },
+					),
+				);
+				yield* Effect.promise(() =>
+					waitUntil(async () => {
+						try {
+							const pid = Number((await readFile(timeoutPidFile, "utf8")).trim());
+							return Number.isInteger(pid) && pid > 0;
+						} catch {
+							return false;
+						}
+					}, "timeout bash child pid"),
+				);
+				yield* TestClock.adjust(10);
+				const timedOut = yield* Fiber.join(timeoutFiber);
 				assert.strictEqual(timedOut.timedOut, true);
 
 				const selfTerminated = yield* runBash({ command: "kill -TERM $$" }, { repositoryRoot: root });
@@ -339,6 +438,43 @@ describe("@skopeo/tools", () => {
 				runBash({ command: "pwd", workingDirectory: "not-a-directory" }, { repositoryRoot: root }),
 			);
 			assert.strictEqual(invalidWorkingDirectory._tag, "ToolInputError");
+		}),
+	);
+
+	it.effect("times out shell process groups with background descendants", () =>
+		Effect.gen(function* () {
+			const root = yield* tempRepoScoped;
+			const pidFile = join(root, ".skopeo-descendant-pid");
+			const fiber = yield* Effect.forkChild(
+				runBash(
+					{ command: "sleep 60 & echo $! > .skopeo-descendant-pid; wait", timeoutMs: 10 },
+					{ repositoryRoot: root },
+				),
+			);
+			let descendantPid = 0;
+			try {
+				yield* Effect.promise(() =>
+					waitUntil(async () => {
+						try {
+							descendantPid = Number((await readFile(pidFile, "utf8")).trim());
+							return Number.isInteger(descendantPid) && descendantPid > 0;
+						} catch {
+							return false;
+						}
+					}, "background descendant pid"),
+				);
+
+				yield* TestClock.adjust(10);
+				const output = yield* Fiber.join(fiber);
+				assert.strictEqual(output.timedOut, true);
+				yield* Effect.promise(() =>
+					waitUntil(() => !isProcessAlive(descendantPid), "background descendant exit after timeout"),
+				);
+			} finally {
+				if (descendantPid > 0 && isProcessAlive(descendantPid)) {
+					process.kill(descendantPid, "SIGKILL");
+				}
+			}
 		}),
 	);
 

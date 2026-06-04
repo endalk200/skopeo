@@ -84,7 +84,10 @@ export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =
 	});
 
 export const makeReadTool = (
-	runEffect: <A, E>(effect: Effect.Effect<A, E, ReadTool>) => Promise<A>,
+	runEffect: <A, E>(
+		effect: Effect.Effect<A, E, ReadTool>,
+		options?: { readonly signal?: AbortSignal | undefined },
+	) => Promise<A>,
 ): Tool<ReadToolInput, ReadToolOutput> => ({
 	description:
 		"Read a repository file with optional line range, or list immediate children of a repository directory.",
@@ -96,6 +99,11 @@ export const makeReadTool = (
 		} catch {
 			throw new Error("Missing repository tool context.");
 		}
-		return await runEffect(Effect.flatMap(ReadTool, (service) => service.read(input, context)));
+		return await runEffect(
+			Effect.flatMap(ReadTool, (service) => service.read(input, context)),
+			{
+				signal: options.abortSignal,
+			},
+		);
 	},
 });
