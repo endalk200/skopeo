@@ -42,15 +42,21 @@ const SpawnerLayer = Layer.succeed(
 	ChildProcessSpawner.make(() => Effect.die("Child process spawning is not implemented in CLI tests")),
 );
 
-let reviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError> = Effect.succeed(
+const defaultReviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError> = Effect.succeed(
 	"Skopeo reviewed 0 changed files. No review findings.",
 );
 
-const CodeReviewAgentTestLayer = Layer.succeed(CodeReviewAgent, {
-	reviewLocalWorktree: () => reviewEffect,
-});
+const codeReviewAgentTestLayer = (
+	reviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError> = defaultReviewEffect,
+) =>
+	Layer.succeed(CodeReviewAgent, {
+		reviewLocalWorktree: () => reviewEffect,
+	});
 
-const cliTestLayer = (files: Record<string, string> = {}) =>
+const cliTestLayer = (
+	files: Record<string, string> = {},
+	reviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError> = defaultReviewEffect,
+) =>
 	Layer.mergeAll(
 		TestConsole.layer,
 		FileSystem.layerNoop({
@@ -66,7 +72,7 @@ const cliTestLayer = (files: Record<string, string> = {}) =>
 		TerminalLayer,
 		CliOutput.layer(CliOutput.defaultFormatter({ colors: false })),
 		SpawnerLayer,
-		CodeReviewAgentTestLayer,
+		codeReviewAgentTestLayer(reviewEffect),
 		Stdio.layerTest({}),
 		withoutConsoleLogger,
 	);
@@ -97,7 +103,11 @@ const withIsolatedSkopeoEnvironment = <A, E, R>(effect: Effect.Effect<A, E, R>) 
 		);
 	});
 
-const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, string> = {}) =>
+const runSkopeoCommand = (
+	args: ReadonlyArray<string>,
+	files: Record<string, string> = {},
+	reviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError> = defaultReviewEffect,
+) =>
 	Effect.gen(function* () {
 		yield* runCliWithArgs(args);
 
@@ -105,23 +115,7 @@ const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, str
 			stdout: yield* TestConsole.logLines,
 			stderr: yield* TestConsole.errorLines,
 		};
-	}).pipe(withIsolatedSkopeoEnvironment, Effect.provide(cliTestLayer(files)));
-
-const withReviewEffect = <A, E, R>(
-	nextReviewEffect: Effect.Effect<string, CodeReviewAgentRuntimeError>,
-	effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> =>
-	Effect.suspend(() => {
-		const previous = reviewEffect;
-		reviewEffect = nextReviewEffect;
-		return effect.pipe(
-			Effect.ensuring(
-				Effect.sync(() => {
-					reviewEffect = previous;
-				}),
-			),
-		);
-	});
+	}).pipe(withIsolatedSkopeoEnvironment, Effect.provide(cliTestLayer(files, reviewEffect)));
 
 describe("skopeo CLI", () => {
 	it.effect("prints root help and succeeds when invoked without arguments", () =>
@@ -305,46 +299,49 @@ describe("skopeo CLI", () => {
 	);
 
 	it.effect("prints only the Code Review Agent report on successful review", () =>
-		withReviewEffect(
-			Effect.succeed("Skopeo reviewed 1 changed files. Found 1 review findings."),
-			Effect.gen(function* () {
-				const { stdout, stderr } = yield* runSkopeoCommand(["review"]);
+		Effect.gen(function* () {
+			const { stdout, stderr } = yield* runSkopeoCommand(
+				["review"],
+				{},
+				Effect.succeed("Skopeo reviewed 1 changed files. Found 1 review findings."),
+			);
 
-				assert.deepStrictEqual(stdout, ["Skopeo reviewed 1 changed files. Found 1 review findings."]);
-				assert.deepStrictEqual(stderr, []);
-			}),
-		),
+			assert.deepStrictEqual(stdout, ["Skopeo reviewed 1 changed files. Found 1 review findings."]);
+			assert.deepStrictEqual(stderr, []);
+		}),
 	);
 
 	it.effect("prints exact empty Review Target report", () =>
-		withReviewEffect(
-			Effect.succeed("Skopeo reviewed 0 changed files. No review findings."),
-			Effect.gen(function* () {
-				const { stdout } = yield* runSkopeoCommand(["review"]);
+		Effect.gen(function* () {
+			const { stdout } = yield* runSkopeoCommand(
+				["review"],
+				{},
+				Effect.succeed("Skopeo reviewed 0 changed files. No review findings."),
+			);
 
-				assert.deepStrictEqual(stdout, ["Skopeo reviewed 0 changed files. No review findings."]);
-			}),
-		),
+			assert.deepStrictEqual(stdout, ["Skopeo reviewed 0 changed files. No review findings."]);
+		}),
 	);
 
 	it.effect("reports review runtime failures to stderr without partial stdout", () =>
-		withReviewEffect(
-			Effect.fail(
-				new CodeReviewAgentRuntimeError({ message: "Code Review Agent failed to complete the review." }),
-			),
-			Effect.gen(function* () {
-				const failure = yield* Effect.flip(
-					runSkopeoCommand(["review"]).pipe(
-						Effect.catchTag("CodeReviewAgentRuntimeError", handleCliFailure.CodeReviewAgentRuntimeError),
+		Effect.gen(function* () {
+			const failure = yield* Effect.flip(
+				runSkopeoCommand(
+					["review"],
+					{},
+					Effect.fail(
+						new CodeReviewAgentRuntimeError({
+							message: "Code Review Agent failed to complete the review.",
+						}),
 					),
-				);
-				const stderr = yield* TestConsole.errorLines;
-				const stdout = yield* TestConsole.logLines;
+				).pipe(Effect.catchTag("CodeReviewAgentRuntimeError", handleCliFailure.CodeReviewAgentRuntimeError)),
+			);
+			const stderr = yield* TestConsole.errorLines;
+			const stdout = yield* TestConsole.logLines;
 
-				assert.strictEqual(failure._tag, "CodeReviewAgentRuntimeError");
-				assert.deepStrictEqual(stdout, []);
-				assert.deepStrictEqual(stderr, ["Code Review Agent failed to complete the review."]);
-			}).pipe(withIsolatedSkopeoEnvironment, Effect.provide(cliTestLayer())),
-		),
+			assert.strictEqual(failure._tag, "CodeReviewAgentRuntimeError");
+			assert.deepStrictEqual(stdout, []);
+			assert.deepStrictEqual(stderr, ["Code Review Agent failed to complete the review."]);
+		}),
 	);
 });
