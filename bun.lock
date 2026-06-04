@@ -18,9 +18,9 @@
         "skopeo": "./dist/bin.js",
       },
       "devDependencies": {
-        "@effect/opentelemetry": "4.0.0-beta.70",
-        "@effect/platform-node": "4.0.0-beta.70",
-        "@effect/vitest": "4.0.0-beta.70",
+        "@effect/opentelemetry": "4.0.0-beta.78",
+        "@effect/platform-node": "4.0.0-beta.78",
+        "@effect/vitest": "4.0.0-beta.78",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/api-logs": "^0.218.0",
         "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
@@ -34,7 +34,7 @@
         "@skopeo/config": "workspace:*",
         "@skopeo/typescript-config": "workspace:*",
         "@types/node": "^25.9.1",
-        "effect": "4.0.0-beta.70",
+        "effect": "4.0.0-beta.78",
         "typescript": "6.0.3",
         "vitest": "^4.1.7",
       },
@@ -44,13 +44,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@ai-sdk/openai": "3.0.65",
-        "@effect/platform-node": "4.0.0-beta.70",
+        "@effect/platform-node": "4.0.0-beta.78",
         "@skopeo/tools": "workspace:*",
         "ai": "6.0.189",
-        "effect": "4.0.0-beta.70",
+        "effect": "4.0.0-beta.78",
       },
       "devDependencies": {
-        "@effect/vitest": "4.0.0-beta.70",
+        "@effect/vitest": "4.0.0-beta.78",
         "@skopeo/typescript-config": "workspace:*",
         "@types/node": "^25.9.1",
         "typescript": "6.0.3",
@@ -65,11 +65,11 @@
       "name": "@skopeo/config",
       "version": "0.0.0",
       "dependencies": {
-        "effect": "4.0.0-beta.70",
+        "effect": "4.0.0-beta.78",
         "toml": "^4.1.1",
       },
       "devDependencies": {
-        "@effect/vitest": "4.0.0-beta.70",
+        "@effect/vitest": "4.0.0-beta.78",
         "@skopeo/typescript-config": "workspace:*",
         "@types/node": "^25.9.1",
         "typescript": "6.0.3",
@@ -80,12 +80,12 @@
       "name": "@skopeo/tools",
       "version": "0.0.0",
       "dependencies": {
-        "@effect/platform-node": "4.0.0-beta.70",
+        "@effect/platform-node": "4.0.0-beta.78",
         "ai": "6.0.189",
-        "effect": "4.0.0-beta.70",
+        "effect": "4.0.0-beta.78",
       },
       "devDependencies": {
-        "@effect/vitest": "4.0.0-beta.70",
+        "@effect/vitest": "4.0.0-beta.78",
         "@skopeo/typescript-config": "workspace:*",
         "@types/node": "^25.9.1",
         "typescript": "6.0.3",
@@ -164,13 +164,13 @@
 
     "@changesets/write": ["@changesets/write@0.4.0", "", { "dependencies": { "@changesets/types": "^6.1.0", "fs-extra": "^7.0.1", "human-id": "^4.1.1", "prettier": "^2.7.1" } }, "sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q=="],
 
-    "@effect/opentelemetry": ["@effect/opentelemetry@4.0.0-beta.70", "", { "peerDependencies": { "@opentelemetry/api": "^1.9", "@opentelemetry/api-logs": ">=0.203.0 <0.300.0", "@opentelemetry/resources": "^2.0.0", "@opentelemetry/sdk-logs": ">=0.203.0 <0.300.0", "@opentelemetry/sdk-metrics": "^2.0.0", "@opentelemetry/sdk-trace-base": "^2.0.0", "@opentelemetry/sdk-trace-node": "^2.0.0", "@opentelemetry/sdk-trace-web": "^2.0.0", "@opentelemetry/semantic-conventions": "^1.33.0", "effect": "^4.0.0-beta.70" }, "optionalPeers": ["@opentelemetry/api", "@opentelemetry/api-logs", "@opentelemetry/resources", "@opentelemetry/sdk-logs", "@opentelemetry/sdk-metrics", "@opentelemetry/sdk-trace-base", "@opentelemetry/sdk-trace-node", "@opentelemetry/sdk-trace-web"] }, "sha512-tqM7XXdZJWXt3LWA9a5ulO0CikRipkwyYKlhm4247VvmXbRKP8kPENXmCaJIBopY4PgO13XDgdIKLcSFtiOFDQ=="],
+    "@effect/opentelemetry": ["@effect/opentelemetry@4.0.0-beta.78", "", { "peerDependencies": { "@opentelemetry/api": "^1.9", "@opentelemetry/api-logs": ">=0.203.0 <0.300.0", "@opentelemetry/resources": "^2.0.0", "@opentelemetry/sdk-logs": ">=0.203.0 <0.300.0", "@opentelemetry/sdk-metrics": "^2.0.0", "@opentelemetry/sdk-trace-base": "^2.0.0", "@opentelemetry/sdk-trace-node": "^2.0.0", "@opentelemetry/sdk-trace-web": "^2.0.0", "@opentelemetry/semantic-conventions": "^1.33.0", "effect": "^4.0.0-beta.78" }, "optionalPeers": ["@opentelemetry/api", "@opentelemetry/api-logs", "@opentelemetry/resources", "@opentelemetry/sdk-logs", "@opentelemetry/sdk-metrics", "@opentelemetry/sdk-trace-base", "@opentelemetry/sdk-trace-node", "@opentelemetry/sdk-trace-web"] }, "sha512-OJGnlNkxfhUmZ/8aLIfQly8ic2tntcnwidAP0BdrTUKa1/sbZjq5xTrhVUjvmehFra2Thsef0k4UPTgsOrBG1A=="],
 
-    "@effect/platform-node": ["@effect/platform-node@4.0.0-beta.70", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.70", "mime": "^4.1.0", "undici": "^8.2.0" }, "peerDependencies": { "effect": "^4.0.0-beta.70", "ioredis": "^5.7.0" } }, "sha512-Ls1WtLaO2CbcO8jHtZRRi6eZa4YOJZ9KXm6udMvwhjV/XhqdsT6AzmcXbc1hINbKgvRcik6qM/441YEaBMYoqw=="],
+    "@effect/platform-node": ["@effect/platform-node@4.0.0-beta.78", "", { "dependencies": { "@effect/platform-node-shared": "^4.0.0-beta.78", "mime": "^4.1.0", "undici": "^8.2.0" }, "peerDependencies": { "effect": "^4.0.0-beta.78", "ioredis": "^5.7.0" } }, "sha512-8ONrIS5/R9dq+0BJ6v3kUXNEkfjU6S3GzIYCH5gmHdiriRvIoBhXYNAITfRvZpfx1JPrKuP70cHyuQDjmJcDkQ=="],
 
-    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.0-beta.74", "", { "dependencies": { "@types/ws": "^8.18.1", "ws": "^8.20.0" }, "peerDependencies": { "effect": "^4.0.0-beta.74" } }, "sha512-C6C2hXixNcZXLaFF2u7B/FtOsqpdY7luaPuiGFBJza0P7EnYDkwaT3kB6lv7l/qctmkADc24qOsSCWIKRbC4jg=="],
+    "@effect/platform-node-shared": ["@effect/platform-node-shared@4.0.0-beta.78", "", { "dependencies": { "@types/ws": "^8.18.1", "ws": "^8.20.0" }, "peerDependencies": { "effect": "^4.0.0-beta.78" } }, "sha512-mo0ddTPATyCMyqzQasYDL7+NI29vozoMplom+qu9f/onDTd4xG5hvEEfGxfL0Ljygui6keG/YE/E9OZVf2z5WA=="],
 
-    "@effect/vitest": ["@effect/vitest@4.0.0-beta.70", "", { "peerDependencies": { "effect": "^4.0.0-beta.70", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-XDteNN0xfOgoMauAVoN5iylxVgEjp7kFsGFq18tZ5XYjek0eOZa0nOoes5s7Bs71VvwjnCeCbFMD7IhxswEt8A=="],
+    "@effect/vitest": ["@effect/vitest@4.0.0-beta.78", "", { "peerDependencies": { "effect": "^4.0.0-beta.78", "vitest": "^3.0.0 || ^4.0.0" } }, "sha512-5KQsQYrQ/o7mfOVAxRtNnfD9M0W4OI6yQd0n/m2N7OOLxTdX4FwN4s/X4obykBC7ZEwH+bzMrFJiB4pq9lrQKQ=="],
 
     "@emnapi/core": ["@emnapi/core@1.10.0", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.1", "tslib": "^2.4.0" } }, "sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw=="],
 
@@ -360,7 +360,7 @@
 
     "dir-glob": ["dir-glob@3.0.1", "", { "dependencies": { "path-type": "^4.0.0" } }, "sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA=="],
 
-    "effect": ["effect@4.0.0-beta.70", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-8AwGTRiNriirHGEYHrOS0E9fzdhIqCdZjiHP1YXmNo2UyPGS43ILsymsSHT7V0DJS+8dvlKq2RxnrDBUhDNZHg=="],
+    "effect": ["effect@4.0.0-beta.78", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-j79Rl9QpHwMz/ZJWLNpZoiVj9N7zHqiLKN5EcYd/A8J1oqejILWQLfc4HPlvqHqKC8SK55LJ+X4gy4ONJ+JpfQ=="],
 
     "enquirer": ["enquirer@2.4.1", "", { "dependencies": { "ansi-colors": "^4.1.1", "strip-ansi": "^6.0.1" } }, "sha512-rRqJg/6gd538VHvR3PSrdRBb/1Vy2YfzHqzvbhGIQpDRKIa4FgV/54b5Q1xYSxOOwKvjXweS26E0Q+nAMwp2pQ=="],
 
