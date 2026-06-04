@@ -22,7 +22,7 @@
       "source": "endalk200/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
-      "computedHash": "682b41a3835f4aaf7cdb6b823ba39fb7fb7bcc67684baf7591d67680e63cc7d4"
+      "computedHash": "9c7550b930ec1148592c5ce8d4b6e591b3d49dd63e21e59c0d48f020aee692a5"
     },
     "source-context": {
       "source": "endalk200/skills",
@@ -56,7 +56,7 @@
     "zoom-out": {
       "source": "endalk200/skills",
       "sourceType": "github",
-      "skillPath": "skills/engineering/zoomout/SKILL.md",
+      "skillPath": "skills/engineering/zoom-out/SKILL.md",
       "computedHash": "8357aeaece3b709c442eab67e64b86844e05e2f1ea95b109565eba50b6def36e"
     }
   }
