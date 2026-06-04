@@ -116,7 +116,7 @@ export const rejectBlockedCommand = (command: string): Effect.Effect<void, ToolI
 
 	return blocked === undefined
 		? Effect.void
-		: Effect.fail(new ToolInputError({ message: `Command rejected by v1 local trust policy: ${blocked.label}.` }));
+		: Effect.fail(new ToolInputError({ message: `Command rejected by local trust policy: ${blocked.label}.` }));
 };
 
 export const requireDirectory = (path: string) =>
