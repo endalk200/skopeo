@@ -76,7 +76,13 @@ export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =
 			const lines = text.split(/\r?\n/);
 			const selected = lines.slice(startLine - 1, endLine);
 			const content = selected.map((line, index) => `${startLine + index}: ${line}`).join("\n");
-			return { kind: "file" as const, path: relativePath, content, truncated: false };
+			const truncated = truncateUtf8(content, wholeFileLimitBytes);
+			return {
+				kind: "file" as const,
+				path: relativePath,
+				content: truncated.value,
+				truncated: truncated.truncated,
+			};
 		}
 
 		const truncated = truncateUtf8(text, wholeFileLimitBytes);
