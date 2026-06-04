@@ -22,7 +22,7 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "4.0.0-beta.78",
-		"ai": "6.0.189",
+		"ai": "6.0.196",
 		"effect": "4.0.0-beta.78"
 	},
 	"devDependencies": {
@@ -30,6 +30,6 @@
 		"@skopeo/typescript-config": "workspace:*",
 		"@types/node": "^25.9.1",
 		"typescript": "6.0.3",
-		"vitest": "^4.1.7"
+		"vitest": "^4.1.8"
 	}
 }
