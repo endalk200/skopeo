@@ -50,12 +50,22 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 				env: process.env,
 				stdio: ["ignore", "pipe", "pipe"],
 			});
-			const timer = setTimeout(() => {
-				child.kill("SIGTERM");
-			}, timeoutMs);
+			let completed = false;
 			let timedOut = false;
 			let stdout = "";
 			let stderr = "";
+			const timer = setTimeout(() => {
+				timedOut = true;
+				child.kill("SIGTERM");
+			}, timeoutMs);
+			const finish = (effect: Effect.Effect<BashToolOutput, ToolExecutionError>) => {
+				if (completed) {
+					return;
+				}
+				completed = true;
+				clearTimeout(timer);
+				resume(effect);
+			};
 
 			child.stdout?.setEncoding("utf8");
 			child.stderr?.setEncoding("utf8");
@@ -66,20 +76,14 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 				stderr += String(chunk);
 			});
 			child.on("error", (cause) => {
-				clearTimeout(timer);
-				resume(
+				finish(
 					Effect.fail(new ToolExecutionError({ message: `Unable to run command: ${cause.message}`, cause })),
 				);
 			});
-			child.on("exit", (code, signal) => {
-				clearTimeout(timer);
-				timedOut = signal === "SIGTERM" && code === null;
-			});
 			child.on("close", (code, signal) => {
-				clearTimeout(timer);
 				const stdoutResult = truncateUtf8(stdout, bashOutputLimitBytes);
 				const stderrResult = truncateUtf8(stderr, bashOutputLimitBytes);
-				resume(
+				finish(
 					Effect.succeed({
 						exitCode: code ?? (signal === null ? 0 : 1),
 						stdout: stdoutResult.value,
@@ -89,6 +93,14 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 						timedOut,
 					}),
 				);
+			});
+			return Effect.sync(() => {
+				if (completed) {
+					return;
+				}
+				completed = true;
+				clearTimeout(timer);
+				child.kill("SIGTERM");
 			});
 		});
 	});
