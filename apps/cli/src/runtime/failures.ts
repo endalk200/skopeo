@@ -1,4 +1,3 @@
-import { formatCodeReviewAgentError } from "@skopeo/code-review-agent";
 import { formatConfigError } from "@skopeo/config";
 import { Console, Data, Effect } from "effect";
 
@@ -14,8 +13,6 @@ export const handleCliFailure = {
 	ConfigFileWriteError: (error: Parameters<typeof formatConfigError>[0]) =>
 		printAndFail(error, formatConfigError(error)),
 	ConfigValidationFailed: (error: ConfigValidationFailed) => Effect.fail(error),
-	CodeReviewAgentRuntimeError: (error: Parameters<typeof formatCodeReviewAgentError>[0]) =>
-		printAndFail(error, formatCodeReviewAgentError(error)),
 	ExplicitConfigFileNotFound: (error: Parameters<typeof formatConfigError>[0]) =>
 		printAndFail(error, formatConfigError(error)),
 	InvalidConfigPath: (error: Parameters<typeof formatConfigError>[0]) =>
@@ -24,6 +21,4 @@ export const handleCliFailure = {
 		printAndFail(error, formatConfigError(error)),
 	InvalidTelemetryEnvironment: (error: Parameters<typeof formatConfigError>[0]) =>
 		printAndFail(error, formatConfigError(error)),
-	ReviewTargetCollectionError: (error: Parameters<typeof formatCodeReviewAgentError>[0]) =>
-		printAndFail(error, formatCodeReviewAgentError(error)),
 } as const;
