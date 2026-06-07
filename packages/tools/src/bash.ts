@@ -61,10 +61,20 @@ const collectLimitedUtf8 = <E, R>(stream: Stream.Stream<Uint8Array, E, R>, limit
 
 export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 	Effect.gen(function* () {
+		const timeoutMs = normalizeTimeout(input.timeoutMs);
+		yield* Effect.annotateCurrentSpan({
+			"skopeo.tool.name": "bash",
+			"skopeo.tool.bash.timeout_ms": timeoutMs,
+			"skopeo.tool.bash.working_directory_shape":
+				input.workingDirectory === undefined || input.workingDirectory === ""
+					? "repository_root"
+					: input.workingDirectory === "."
+						? "dot"
+						: "relative",
+		});
 		yield* rejectBlockedCommand(input.command);
 		const workingDirectory = yield* resolveRepositoryPath(context.repositoryRoot, input.workingDirectory);
 		yield* requireDirectory(workingDirectory);
-		const timeoutMs = normalizeTimeout(input.timeoutMs);
 
 		return yield* Effect.gen(function* () {
 			const handle = yield* ChildProcess.make("/bin/bash", ["-lc", input.command], {
@@ -112,8 +122,34 @@ export const runBash = (input: BashToolInput, context: RepositoryToolContext) =>
 					? cause
 					: new ToolExecutionError({ message: `Unable to run command: ${String(cause)}`, cause }),
 			),
+			Effect.tap((output) =>
+				Effect.annotateCurrentSpan({
+					"skopeo.tool.bash.exit_code": output.exitCode,
+					"skopeo.tool.bash.timed_out": output.timedOut,
+					"skopeo.tool.bash.stdout_truncated": output.stdoutTruncated,
+					"skopeo.tool.bash.stderr_truncated": output.stderrTruncated,
+				}),
+			),
+			Effect.tap((output) =>
+				Effect.logInfo("Ran repository bash command", {
+					"skopeo.tool.name": "bash",
+					"skopeo.tool.bash.exit_code": output.exitCode,
+					"skopeo.tool.bash.timed_out": output.timedOut,
+					"skopeo.tool.bash.stdout_truncated": output.stdoutTruncated,
+					"skopeo.tool.bash.stderr_truncated": output.stderrTruncated,
+				}),
+			),
 		);
-	});
+	}).pipe(
+		Effect.tapError((error) =>
+			Effect.annotateCurrentSpan({
+				"skopeo.tool.bash.failure": error._tag,
+				"skopeo.tool.bash.policy_rejected":
+					error._tag === "ToolInputError" && error.message.includes("local trust policy"),
+			}),
+		),
+		Effect.withSpan("skopeo.tool.bash"),
+	);
 
 export const makeBashTool = (
 	runEffect: <A, E>(
