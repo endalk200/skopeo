@@ -5,9 +5,11 @@ import * as PlatformError from "effect/PlatformError";
 import {
 	CONFIG_PATH_ENV,
 	DEFAULT_OTLP_HTTP_ENDPOINT,
+	DEVTOOLS_ENV,
 	initSkopeoConfigFromEnvironment,
 	loadSkopeoConfigFromEnvironment,
 	OTLP_ENDPOINT_ENV,
+	parseDevToolsEnabledEnv,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
 	resolveConfigPath,
@@ -37,6 +39,9 @@ describe("@skopeo/config", () => {
 					enabled: false,
 					otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
 				},
+				devtools: {
+					enabled: false,
+				},
 			});
 		}).pipe(Effect.provide(fileSystemLayer({}))),
 	);
@@ -52,12 +57,44 @@ describe("@skopeo/config", () => {
 				enabled: true,
 				otlpEndpoint: "http://127.0.0.1:4318",
 			});
+			assert.deepStrictEqual(config.devtools, {
+				enabled: false,
+			});
 		}).pipe(
 			Effect.provide(
 				fileSystemLayer({
 					"/tmp/skopeo-config-test.toml": `[telemetry]
 enabled = true
 otlp_endpoint = "http://localhost:9999"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("loads DevTools configuration independently from telemetry", () =>
+		Effect.gen(function* () {
+			const fileOnly = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-devtools-config-test.toml",
+			});
+			assert.strictEqual(fileOnly.devtools.enabled, true);
+			assert.strictEqual(fileOnly.telemetry.enabled, false);
+
+			const envOverride = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-devtools-config-test.toml",
+				[DEVTOOLS_ENV]: "false",
+				[TELEMETRY_ENV]: "true",
+			});
+			assert.strictEqual(envOverride.devtools.enabled, false);
+			assert.strictEqual(envOverride.telemetry.enabled, true);
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-devtools-config-test.toml": `[telemetry]
+enabled = false
+
+[devtools]
+enabled = true
 `,
 				}),
 			),
@@ -72,6 +109,17 @@ otlp_endpoint = "http://localhost:9999"
 			const invalid = yield* Effect.flip(parseTelemetryEnabledEnv("1"));
 
 			assert.strictEqual(invalid._tag, "InvalidTelemetryEnvironment");
+		}),
+	);
+
+	it.effect("keeps SKOPEO_DEVTOOLS strict", () =>
+		Effect.gen(function* () {
+			assert.strictEqual(yield* parseDevToolsEnabledEnv("true"), true);
+			assert.strictEqual(yield* parseDevToolsEnabledEnv("false"), false);
+
+			const invalid = yield* Effect.flip(parseDevToolsEnabledEnv("1"));
+
+			assert.strictEqual(invalid._tag, "InvalidDevToolsEnvironment");
 		}),
 	);
 
@@ -100,6 +148,7 @@ otlp_endpoint = "http://localhost:9999"
 			const report = yield* validateSkopeoConfigFromEnvironment({
 				[CONFIG_PATH_ENV]: "/tmp/skopeo-invalid-config-test.toml",
 				[TELEMETRY_ENV]: "1",
+				[DEVTOOLS_ENV]: "yes",
 			});
 
 			assert.strictEqual(report.file._tag, "invalid");
@@ -155,6 +204,7 @@ otlp_endpoint = "not-a-url"
 
 			assert.strictEqual(path.path, "/tmp/skopeo-init-config-test.toml");
 			assert.include(files["/tmp/skopeo-init-config-test.toml"] ?? "", "[telemetry]");
+			assert.include(files["/tmp/skopeo-init-config-test.toml"] ?? "", "[devtools]");
 
 			const alreadyExists = yield* Effect.flip(
 				initSkopeoConfigFromEnvironment(env).pipe(Effect.provide(fileSystemLayer(files))),

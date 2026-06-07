@@ -8,14 +8,20 @@ export const DEFAULT_CONFIG_PATH = "~/.skopeo/config.toml";
 export const CONFIG_PATH_ENV = "SKOPEO_CONFIG_PATH";
 export const TELEMETRY_ENV = "SKOPEO_TELEMETRY";
 export const OTLP_ENDPOINT_ENV = "SKOPEO_OTLP_ENDPOINT";
+export const DEVTOOLS_ENV = "SKOPEO_DEVTOOLS";
 
 export type TelemetryConfig = {
 	readonly enabled: boolean;
 	readonly otlpEndpoint: string;
 };
 
+export type DevToolsConfig = {
+	readonly enabled: boolean;
+};
+
 export type SkopeoConfiguration = {
 	readonly telemetry: TelemetryConfig;
+	readonly devtools: DevToolsConfig;
 };
 
 export const defaultSkopeoConfiguration: SkopeoConfiguration = {
@@ -23,9 +29,16 @@ export const defaultSkopeoConfiguration: SkopeoConfiguration = {
 		enabled: false,
 		otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
 	},
+	devtools: {
+		enabled: false,
+	},
 };
 
 export class InvalidTelemetryEnvironment extends Data.TaggedError("InvalidTelemetryEnvironment")<{
+	readonly value: string;
+}> {}
+
+export class InvalidDevToolsEnvironment extends Data.TaggedError("InvalidDevToolsEnvironment")<{
 	readonly value: string;
 }> {}
 
@@ -62,6 +75,7 @@ export type ConfigError =
 	| ConfigFileParseError
 	| ConfigFileWriteError
 	| ExplicitConfigFileNotFound
+	| InvalidDevToolsEnvironment
 	| InvalidConfigPath
 	| InvalidTelemetryEndpoint
 	| InvalidTelemetryEnvironment;
@@ -104,7 +118,10 @@ type ConfigFileSource = ConfigSourceProvider & {
 type ResolvedConfigSources = {
 	readonly path: ConfigPathResolution;
 	readonly file: Result.Result<ConfigFileSource, ConfigFileParseError | ExplicitConfigFileNotFound>;
-	readonly env: Result.Result<ConfigSourceProvider, InvalidTelemetryEndpoint | InvalidTelemetryEnvironment>;
+	readonly env: Result.Result<
+		ConfigSourceProvider,
+		InvalidDevToolsEnvironment | InvalidTelemetryEndpoint | InvalidTelemetryEnvironment
+	>;
 };
 
 const normalizeUrl = (url: URL): string => url.toString().replace(/\/$/, "");
@@ -123,8 +140,13 @@ export const telemetryConfigDescriptor = Config.all({
 	Config.nested("telemetry"),
 );
 
+export const devToolsConfigDescriptor = Config.all({
+	enabled: Config.boolean("enabled").pipe(Config.withDefault(defaultSkopeoConfiguration.devtools.enabled)),
+}).pipe(Config.nested("devtools"));
+
 export const skopeoConfigDescriptor = Config.all({
 	telemetry: telemetryConfigDescriptor,
+	devtools: devToolsConfigDescriptor,
 });
 
 export const starterConfigToml = `# Skopeo Configuration
@@ -135,6 +157,12 @@ export const starterConfigToml = `# Skopeo Configuration
 [telemetry]
 enabled = false
 otlp_endpoint = "${DEFAULT_OTLP_HTTP_ENDPOINT}"
+
+# AI SDK DevTools is disabled by default. Enable it only for local debugging;
+# it records full AI SDK interactions into local .devtools data.
+
+[devtools]
+enabled = false
 `;
 
 const normalizeUrlString = (value: string) =>
@@ -156,6 +184,21 @@ export const parseTelemetryEnabledEnv = (
 		return Effect.succeed(false);
 	}
 	return Effect.fail(new InvalidTelemetryEnvironment({ value }));
+};
+
+export const parseDevToolsEnabledEnv = (
+	value: string | undefined,
+): Effect.Effect<boolean | undefined, InvalidDevToolsEnvironment> => {
+	if (value === undefined) {
+		return Effect.succeed(undefined);
+	}
+	if (value === "true") {
+		return Effect.succeed(true);
+	}
+	if (value === "false") {
+		return Effect.succeed(false);
+	}
+	return Effect.fail(new InvalidDevToolsEnvironment({ value }));
 };
 
 export const parseTelemetryEndpointEnv = (
@@ -334,6 +377,8 @@ export const formatConfigError = (error: ConfigError | ConfigFileAlreadyExists):
 			return `Config file from ${CONFIG_PATH_ENV} does not exist at ${error.path}.`;
 		case "InvalidConfigPath":
 			return `Invalid ${CONFIG_PATH_ENV} value "${error.value}". Expected a non-empty path.`;
+		case "InvalidDevToolsEnvironment":
+			return `Invalid ${DEVTOOLS_ENV} value "${error.value}". Expected "true" or "false".`;
 		case "InvalidTelemetryEndpoint":
 			return `Invalid ${OTLP_ENDPOINT_ENV} value "${error.value}". Expected an absolute URL.`;
 		case "InvalidTelemetryEnvironment":
@@ -422,14 +467,19 @@ const loadFileProvider = (
 
 const loadEnvOverrideProvider = (
 	env: Record<string, string | undefined> = process.env,
-): Effect.Effect<ConfigSourceProvider, InvalidTelemetryEndpoint | InvalidTelemetryEnvironment> =>
+): Effect.Effect<
+	ConfigSourceProvider,
+	InvalidDevToolsEnvironment | InvalidTelemetryEndpoint | InvalidTelemetryEnvironment
+> =>
 	Effect.gen(function* () {
 		const enabled = yield* parseTelemetryEnabledEnv(env[TELEMETRY_ENV]);
 		const otlpEndpoint = yield* parseTelemetryEndpointEnv(env[OTLP_ENDPOINT_ENV]);
+		const devToolsEnabled = yield* parseDevToolsEnabledEnv(env[DEVTOOLS_ENV]);
 
 		yield* Effect.annotateCurrentSpan({
 			"skopeo.telemetry.env_present": env[TELEMETRY_ENV] !== undefined,
 			"skopeo.telemetry.endpoint_env_present": env[OTLP_ENDPOINT_ENV] !== undefined,
+			"skopeo.devtools.env_present": env[DEVTOOLS_ENV] !== undefined,
 		});
 
 		return {
@@ -437,6 +487,9 @@ const loadEnvOverrideProvider = (
 				telemetry: {
 					...(enabled === undefined ? {} : { enabled }),
 					...(otlpEndpoint === undefined ? {} : { otlp_endpoint: otlpEndpoint }),
+				},
+				devtools: {
+					...(devToolsEnabled === undefined ? {} : { enabled: devToolsEnabled }),
 				},
 			}),
 		};
@@ -477,6 +530,7 @@ const parseEffectiveConfig = (sources: ResolvedConfigSources): Effect.Effect<Sko
 		yield* Effect.annotateCurrentSpan({
 			"skopeo.config.effective_status": "valid",
 			"skopeo.telemetry.enabled": config.telemetry.enabled,
+			"skopeo.devtools.enabled": config.devtools.enabled,
 		});
 
 		return config;

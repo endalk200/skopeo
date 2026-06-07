@@ -4,8 +4,10 @@ import { CodeReviewAgent, CodeReviewAgentRuntimeError } from "@skopeo/code-revie
 import {
 	CONFIG_PATH_ENV,
 	type ConfigValidationReport,
+	DEVTOOLS_ENV,
 	InvalidConfigPath,
 	OTLP_ENDPOINT_ENV,
+	parseDevToolsEnabledEnv,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
 	TELEMETRY_ENV,
@@ -77,7 +79,7 @@ const cliTestLayer = (
 		withoutConsoleLogger,
 	);
 
-const skopeoEnvKeys = [CONFIG_PATH_ENV, TELEMETRY_ENV, OTLP_ENDPOINT_ENV] as const;
+const skopeoEnvKeys = [CONFIG_PATH_ENV, TELEMETRY_ENV, OTLP_ENDPOINT_ENV, DEVTOOLS_ENV] as const;
 
 const withIsolatedSkopeoEnvironment = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 	Effect.suspend(() => {
@@ -189,6 +191,19 @@ describe("skopeo CLI", () => {
 		}),
 	);
 
+	it.effect("keeps DevTools env parsing in Skopeo Configuration", () =>
+		Effect.gen(function* () {
+			assert.strictEqual(yield* parseDevToolsEnabledEnv(undefined), undefined);
+			assert.strictEqual(yield* parseDevToolsEnabledEnv("false"), false);
+			assert.strictEqual(yield* parseDevToolsEnabledEnv("true"), true);
+
+			const invalid = yield* Effect.flip(parseDevToolsEnabledEnv("1"));
+
+			assert.strictEqual(invalid._tag, "InvalidDevToolsEnvironment");
+			assert.strictEqual(invalid.value, "1");
+		}),
+	);
+
 	it.effect("builds disabled telemetry from resolved Skopeo Configuration", () =>
 		Effect.gen(function* () {
 			const loggers = yield* Logger.CurrentLoggers;
@@ -200,6 +215,9 @@ describe("skopeo CLI", () => {
 					telemetry: {
 						enabled: false,
 						otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
+					},
+					devtools: {
+						enabled: true,
 					},
 				}),
 			),
@@ -225,6 +243,9 @@ describe("skopeo CLI", () => {
 						telemetry: {
 							enabled: true,
 							otlpEndpoint: "http://127.0.0.1:65535",
+						},
+						devtools: {
+							enabled: false,
 						},
 					}),
 				),
@@ -254,6 +275,9 @@ describe("skopeo CLI", () => {
 						telemetry: {
 							enabled: true,
 							otlpEndpoint: "http://127.0.0.1:27686",
+						},
+						devtools: {
+							enabled: false,
 						},
 					}),
 				),
@@ -295,6 +319,7 @@ describe("skopeo CLI", () => {
 			assert.notInclude(stdoutText, "model");
 			assert.notInclude(stdoutText, "json");
 			assert.notInclude(stdoutText, "verbose");
+			assert.notInclude(stdoutText, "devtools");
 		}),
 	);
 
