@@ -17,6 +17,13 @@ export const validateCommand = Command.make("validate").pipe(
 	Command.withShortDescription("Validate config"),
 	Command.withHandler(() =>
 		Effect.gen(function* () {
+			Effect.annotateCurrentSpan({
+				attributes: {
+					"cli.command": "config validate",
+					"skopeo.command": "config validate",
+				},
+			});
+
 			const report = yield* validateSkopeoConfig;
 			const hasFailures = configValidationHasFailures(report);
 
@@ -43,12 +50,6 @@ export const validateCommand = Command.make("validate").pipe(
 				return yield* Effect.fail(new ConfigValidationFailed());
 			}
 		}).pipe(
-			Effect.withSpan("skopeo.cli.config.validate", {
-				attributes: {
-					"cli.command": "config validate",
-					"skopeo.command": "config validate",
-				},
-			}),
 			Effect.annotateLogs({
 				"skopeo.command": "config validate",
 			}),

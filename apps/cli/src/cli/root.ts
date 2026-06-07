@@ -1,7 +1,7 @@
 import { Command } from "effect/unstable/cli";
 import { configCommand } from "./commands/config/index.js";
-import { reviewCommand } from "./commands/review/review.cmd.js";
 import { versionCommand } from "./commands/version.cmd.js";
+import { reviewCommand } from "./commands/review.cmd.js";
 
 export const commandCatalog = [versionCommand, configCommand, reviewCommand] as const;
 
