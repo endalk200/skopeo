@@ -30,6 +30,11 @@ export class ReadTool extends Context.Service<ReadTool, ReadToolServiceShape>()(
 
 export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =>
 	Effect.gen(function* () {
+		yield* Effect.annotateCurrentSpan({
+			"skopeo.tool.name": "read",
+			"skopeo.tool.read.path_shape": input.path === "" ? "empty" : input.path === "." ? "dot" : "relative",
+			"skopeo.tool.read.line_range_requested": input.startLine !== undefined || input.endLine !== undefined,
+		});
 		const targetPath = yield* resolveRepositoryPath(context.repositoryRoot, input.path);
 		const stat = yield* Effect.tryPromise({
 			try: () => lstat(targetPath),
@@ -51,6 +56,17 @@ export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =
 			const content =
 				omittedEntries > 0 ? `${visible.join("\n")}\n[${omittedEntries} entries omitted]` : visible.join("\n");
 
+			yield* Effect.annotateCurrentSpan({
+				"skopeo.tool.read.kind": "directory",
+				"skopeo.tool.read.truncated": omittedEntries > 0,
+				"skopeo.tool.read.omitted_entries": omittedEntries,
+			});
+			yield* Effect.logInfo("Read repository directory", {
+				"skopeo.tool.name": "read",
+				"skopeo.tool.read.kind": "directory",
+				"skopeo.tool.read.truncated": omittedEntries > 0,
+				"skopeo.tool.read.omitted_entries": omittedEntries,
+			});
 			return {
 				kind: "directory" as const,
 				path: relativePath,
@@ -77,6 +93,17 @@ export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =
 			const selected = lines.slice(startLine - 1, endLine);
 			const content = selected.map((line, index) => `${startLine + index}: ${line}`).join("\n");
 			const truncated = truncateUtf8(content, wholeFileLimitBytes);
+			yield* Effect.annotateCurrentSpan({
+				"skopeo.tool.read.kind": "file",
+				"skopeo.tool.read.truncated": truncated.truncated,
+				"skopeo.tool.read.line_range_requested": true,
+			});
+			yield* Effect.logInfo("Read repository file", {
+				"skopeo.tool.name": "read",
+				"skopeo.tool.read.kind": "file",
+				"skopeo.tool.read.truncated": truncated.truncated,
+				"skopeo.tool.read.line_range_requested": true,
+			});
 			return {
 				kind: "file" as const,
 				path: relativePath,
@@ -86,8 +113,26 @@ export const readPath = (input: ReadToolInput, context: RepositoryToolContext) =
 		}
 
 		const truncated = truncateUtf8(text, wholeFileLimitBytes);
+		yield* Effect.annotateCurrentSpan({
+			"skopeo.tool.read.kind": "file",
+			"skopeo.tool.read.truncated": truncated.truncated,
+			"skopeo.tool.read.line_range_requested": false,
+		});
+		yield* Effect.logInfo("Read repository file", {
+			"skopeo.tool.name": "read",
+			"skopeo.tool.read.kind": "file",
+			"skopeo.tool.read.truncated": truncated.truncated,
+			"skopeo.tool.read.line_range_requested": false,
+		});
 		return { kind: "file" as const, path: relativePath, content: truncated.value, truncated: truncated.truncated };
-	});
+	}).pipe(
+		Effect.tapError((error) =>
+			Effect.annotateCurrentSpan({
+				"skopeo.tool.read.failure": error._tag,
+			}),
+		),
+		Effect.withSpan("skopeo.tool.read"),
+	);
 
 export const makeReadTool = (
 	runEffect: <A, E>(
