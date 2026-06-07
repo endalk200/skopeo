@@ -9,7 +9,8 @@ import { telemetryLayer } from "./runtime/telemetry.js";
 
 const SkopeoConfigLayer = SkopeoConfig.layer;
 const TelemetryLayer = telemetryLayer.pipe(Layer.provide(SkopeoConfigLayer));
-const MainLayer = Layer.mergeAll(SkopeoConfigLayer, TelemetryLayer, CodeReviewAgentLayer).pipe(
+const CodeReviewAgentConfiguredLayer = CodeReviewAgentLayer.pipe(Layer.provide(SkopeoConfigLayer));
+const MainLayer = Layer.mergeAll(SkopeoConfigLayer, TelemetryLayer, CodeReviewAgentConfiguredLayer).pipe(
 	Layer.provideMerge(NodeServices.layer),
 );
 
