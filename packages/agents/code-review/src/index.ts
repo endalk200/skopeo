@@ -5,6 +5,8 @@ export {
 	ReviewTargetCollectionError,
 } from "./errors.js";
 export {
+	DevToolsMiddlewareLoader,
+	type DevToolsMiddlewareLoaderShape,
 	makeReviewTools,
 	ReviewModelExecutor,
 	type ReviewModelExecutorShape,

@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { assert, describe, it } from "@effect/vitest";
+import { SkopeoConfig, type SkopeoConfiguration } from "@skopeo/config";
 import { Effect, Layer } from "effect";
-import { CodeReviewAgent, ReviewModelExecutor, type ReviewModelRequest } from "./index.js";
+import { CodeReviewAgent, DevToolsMiddlewareLoader, ReviewModelExecutor, type ReviewModelRequest } from "./index.js";
 import { defaultReviewProfile, fastProfile, reviewProfiles } from "./profiles/index.js";
 import { collectReviewTarget, formatChangedFileSummary, noFindingsReport } from "./review-target/collector.js";
 
@@ -18,6 +19,19 @@ const tempGitRepo = async () => {
 	await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: root });
 	return root;
 };
+
+const testConfig = (overrides: Partial<SkopeoConfiguration> = {}) =>
+	Layer.succeed(SkopeoConfig, {
+		telemetry: {
+			enabled: false,
+			otlpEndpoint: "http://localhost:4318",
+			...overrides.telemetry,
+		},
+		devtools: {
+			enabled: false,
+			...overrides.devtools,
+		},
+	});
 
 describe("@skopeo/code-review-agent", () => {
 	it.effect("collects staged, unstaged, and untracked non-ignored files once", () =>
@@ -139,6 +153,7 @@ describe("@skopeo/code-review-agent", () => {
 					Effect.flatMap(CodeReviewAgent, (agent) => agent.reviewLocalWorktree()).pipe(
 						Effect.provide(CodeReviewAgent.Live),
 						Effect.provide(FakeExecutor),
+						Effect.provide(testConfig()),
 					),
 				);
 				assert.strictEqual(report, "Skopeo reviewed 0 changed files. No review findings.");
@@ -170,11 +185,14 @@ describe("@skopeo/code-review-agent", () => {
 					Effect.flatMap(CodeReviewAgent, (agent) => agent.reviewLocalWorktree()).pipe(
 						Effect.provide(CodeReviewAgent.Live),
 						Effect.provide(FakeExecutor),
+						Effect.provide(testConfig()),
 					),
 				);
 
 				assert.strictEqual(report, "MODEL AUTHORED REPORT");
 				assert.strictEqual(request?.profile.id, "deep");
+				assert.strictEqual(request?.telemetryEnabled, false);
+				assert.strictEqual(request?.devToolsEnabled, false);
 				assert.strictEqual(request?.prompt, "Changed file count: 1\n\nChanged files:\n- ? changed.ts");
 				assert.strictEqual(request?.prompt.includes(root), false);
 				assert.strictEqual(request?.toolContext.repositoryRoot, realRoot);
@@ -182,6 +200,79 @@ describe("@skopeo/code-review-agent", () => {
 			} finally {
 				process.chdir(previousCwd);
 			}
+		}),
+	);
+
+	it.effect("passes independent telemetry and DevTools configuration to the model boundary", () =>
+		Effect.promise(async () => {
+			const root = await tempGitRepo();
+			await writeFile(join(root, "changed.ts"), "export const x = 1;\n");
+			const previousCwd = process.cwd();
+			process.chdir(root);
+			let request: ReviewModelRequest | undefined;
+			const FakeExecutor = Layer.succeed(ReviewModelExecutor, {
+				execute: (nextRequest) =>
+					Effect.sync(() => {
+						request = nextRequest;
+						return "MODEL AUTHORED REPORT";
+					}),
+			});
+
+			try {
+				await Effect.runPromise(
+					Effect.flatMap(CodeReviewAgent, (agent) => agent.reviewLocalWorktree()).pipe(
+						Effect.provide(CodeReviewAgent.Live),
+						Effect.provide(FakeExecutor),
+						Effect.provide(
+							testConfig({
+								telemetry: { enabled: true, otlpEndpoint: "http://localhost:4318" },
+								devtools: { enabled: false },
+							}),
+						),
+					),
+				);
+
+				assert.strictEqual(request?.telemetryEnabled, true);
+				assert.strictEqual(request?.devToolsEnabled, false);
+			} finally {
+				process.chdir(previousCwd);
+			}
+		}),
+	);
+
+	it.effect("does not load DevTools when disabled and skips wrapping in production", () =>
+		Effect.gen(function* () {
+			let wrapped = 0;
+			const Loader = Layer.succeed(DevToolsMiddlewareLoader, {
+				wrapModel: (model) =>
+					Effect.sync(() => {
+						wrapped += 1;
+						return model;
+					}),
+			});
+			const FakeModel = Layer.provide(ReviewModelExecutor.Live, Loader);
+
+			const request = {
+				profile: defaultReviewProfile,
+				prompt: "Changed file count: 1",
+				target: {
+					repositoryRoot: process.cwd(),
+					changedFileCount: 1,
+					files: [],
+					changedFileSummary: "Changed file count: 1",
+				},
+				tools: {},
+				toolContext: { repositoryRoot: process.cwd() },
+				telemetryEnabled: false,
+				devToolsEnabled: true,
+				nodeEnv: "production",
+			} satisfies ReviewModelRequest;
+
+			const executor = yield* ReviewModelExecutor.pipe(Effect.provide(FakeModel));
+			const failed = yield* Effect.exit(executor.execute(request));
+
+			assert.strictEqual(wrapped, 0);
+			assert.strictEqual(failed._tag, "Failure");
 		}),
 	);
 });
