@@ -22,7 +22,12 @@ const traceCliRun = <E, R>(args: ReadonlyArray<string>, effect: Effect.Effect<vo
 		const spanName = rootSpanNameFromArgs(args);
 
 		return Effect.gen(function* () {
-			yield* Effect.logInfo("Skopeo CLI command started", { args, version: VERSION });
+			yield* Effect.logInfo("Skopeo CLI command started").pipe(
+				Effect.annotateLogs({
+					args,
+					version: VERSION,
+				}),
+			);
 			yield* effect;
 		}).pipe(
 			Effect.withSpan(spanName, {
