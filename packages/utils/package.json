@@ -1,0 +1,33 @@
+{
+	"name": "@skopeo/utils",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"development": "./src/index.ts",
+			"node": "./dist/index.js",
+			"default": "./src/index.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"check-types": "tsc -p tsconfig.json --noEmit",
+		"format": "biome format --write package.json tsconfig.json src",
+		"format:check": "biome format package.json tsconfig.json src",
+		"lint": "biome check package.json tsconfig.json src",
+		"lint:fix": "biome check --fix package.json tsconfig.json src",
+		"test": "vitest run src --passWithNoTests"
+	},
+	"devDependencies": {
+		"@skopeo/typescript-config": "workspace:*",
+		"@types/node": "^25.9.1",
+		"typescript": "6.0.3",
+		"vitest": "^4.1.8",
+		"@effect/opentelemetry": "4.0.0-beta.78",
+		"@effect/platform-node": "4.0.0-beta.78",
+		"@effect/vitest": "4.0.0-beta.78",
+		"effect": "4.0.0-beta.78"
+	}
+}
