@@ -19,6 +19,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "9c7550b930ec1148592c5ce8d4b6e591b3d49dd63e21e59c0d48f020aee692a5"
     },
+    "prototype": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/prototype/SKILL.md",
+      "computedHash": "e4d0c8f8cb3fc096ee99405a15491da466545cf4a3694bee5a0c9db2fa621a43"
+    },
     "source-context": {
       "source": "endalk200/skills",
       "sourceType": "github",
@@ -30,6 +36,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/tdd/SKILL.md",
       "computedHash": "3dab0458015cccfea022699d485f58cb1f21fc61994a74873b417b18f81f1529"
+    },
+    "teach": {
+      "source": "endalk200/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/teach/SKILL.md",
+      "computedHash": "9bbda5627df9d1d46082c7d839f53a04b2a884451f7f7c45fc9860d852b19453"
     },
     "to-issues": {
       "source": "endalk200/skills",
