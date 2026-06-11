@@ -26,12 +26,14 @@
 		"@types/node": "^25.9.2",
 		"typescript": "6.0.3",
 		"vitest": "^4.1.8",
-		"@effect/opentelemetry": "4.0.0-beta.78",
 		"@effect/platform-node": "4.0.0-beta.78",
 		"@effect/vitest": "4.0.0-beta.78",
 		"effect": "4.0.0-beta.78"
 	},
 	"dependencies": {
+		"@effect/opentelemetry": "4.0.0-beta.78",
+		"@opentelemetry/api": "^1.9.1",
+		"@skopeo/tools": "workspace:*",
 		"@tanstack/ai": "^0.28.0",
 		"@tanstack/ai-openai": "^0.14.1",
 		"zod": "^4.4.3"
