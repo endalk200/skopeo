@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Stream } from "effect";
+import { Context, Effect, FileSystem, Layer, Stream } from "effect";
 import { ChildProcess } from "effect/unstable/process";
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
 import { GitCommandError, type GitError, NotGitRepositoryError } from "./errors.js";
@@ -103,22 +103,43 @@ const makeGitCommandRunner =
 	(path, args) =>
 		runGit(path, args).pipe(Effect.provideService(ChildProcessSpawner, childProcessSpawner));
 
-const validateRepository = (runGitCommand: RunGitCommand, path: RepositoryPath): Effect.Effect<void, GitError> =>
+const gitCommandErrorForInvalidPath = (
+	path: RepositoryPath,
+	args: ReadonlyArray<string>,
+	message: string,
+): GitCommandError =>
+	new GitCommandError({
+		command: ["git", "-C", path, ...args],
+		exitCode: -1,
+		stdout: "",
+		stderr: "",
+		message,
+	});
+
+const validateRepository = (
+	runGitCommand: RunGitCommand,
+	fileSystem: FileSystem.FileSystem,
+	path: RepositoryPath,
+): Effect.Effect<void, GitError> =>
 	Effect.gen(function* () {
 		const args = ["rev-parse", "--is-inside-work-tree"];
-		const result = yield* runGitCommand(path, args);
+		const exists = yield* fileSystem
+			.exists(path)
+			.pipe(Effect.mapError((error) => gitCommandErrorForInvalidPath(path, args, String(error))));
 
-		if (result.stderr.includes("cannot change to")) {
-			return yield* Effect.fail(
-				new GitCommandError({
-					command: ["git", "-C", path, ...args],
-					exitCode: result.exitCode,
-					stdout: result.stdout,
-					stderr: result.stderr,
-					message: `Path is not inside a Git working tree: ${path}`,
-				}),
-			);
+		if (!exists) {
+			return yield* Effect.fail(gitCommandErrorForInvalidPath(path, args, `Path does not exist: ${path}`));
 		}
+
+		const fileInfo = yield* fileSystem
+			.stat(path)
+			.pipe(Effect.mapError((error) => gitCommandErrorForInvalidPath(path, args, String(error))));
+
+		if (fileInfo.type !== "Directory") {
+			return yield* Effect.fail(gitCommandErrorForInvalidPath(path, args, `Path is not a directory: ${path}`));
+		}
+
+		const result = yield* runGitCommand(path, args);
 
 		if (result.exitCode !== 0 || result.stdout.trim() !== "true") {
 			return yield* Effect.fail(
@@ -161,12 +182,13 @@ const GitServiceLive = Layer.effect(
 	GitService,
 	Effect.gen(function* () {
 		const childProcessSpawner = yield* ChildProcessSpawner;
+		const fileSystem = yield* FileSystem.FileSystem;
 		const runGitCommand = makeGitCommandRunner(childProcessSpawner);
 
 		return GitService.of({
 			getCurrentBranch: (path) =>
 				Effect.fn("skopeo.git.get_current_branch")(function* () {
-					yield* validateRepository(runGitCommand, path);
+					yield* validateRepository(runGitCommand, fileSystem, path);
 
 					const branch = yield* getOptionalGitOutput(runGitCommand, path, [
 						"symbolic-ref",
@@ -180,14 +202,14 @@ const GitServiceLive = Layer.effect(
 
 			getCurrentBranchHead: (path) =>
 				Effect.fn("skopeo.git.get_current_branch_head")(function* () {
-					yield* validateRepository(runGitCommand, path);
+					yield* validateRepository(runGitCommand, fileSystem, path);
 
 					return yield* getOptionalGitOutput(runGitCommand, path, ["rev-parse", "--verify", "HEAD"]);
 				})(),
 
 			getMainBranch: (path) =>
 				Effect.fn("skopeo.git.get_main_branch")(function* () {
-					yield* validateRepository(runGitCommand, path);
+					yield* validateRepository(runGitCommand, fileSystem, path);
 
 					const originHead = yield* getOptionalGitOutput(runGitCommand, path, [
 						"symbolic-ref",
@@ -210,7 +232,7 @@ const GitServiceLive = Layer.effect(
 
 			getRepositoryRoot: (path) =>
 				Effect.fn("skopeo.git.get_repository_root")(function* () {
-					yield* validateRepository(runGitCommand, path);
+					yield* validateRepository(runGitCommand, fileSystem, path);
 
 					const root = yield* getOptionalGitOutput(runGitCommand, path, ["rev-parse", "--show-toplevel"]);
 					if (root === null) {
