@@ -8,6 +8,8 @@ import {
 } from "../tool-policy.js";
 import { readFileToolDefinition, type ToolDefinitionFactoryOptions } from "./definition.js";
 
+const utf8Encoder = new TextEncoder();
+
 export type ReadFileAgentToolInput = {
 	readonly path: string;
 };
@@ -54,12 +56,13 @@ export const ReadFileAgentToolLive = Layer.effect(
 
 					const path = yield* fs.realPath(requestedPath);
 					const content = yield* fs.readFileString(path);
+					const outputBytes = utf8Encoder.encode(content).byteLength;
 
 					yield* Effect.logInfo("Read Agent Tool completed").pipe(
 						Effect.annotateLogs({
 							"agent_tool.name": "read_file",
 							"agent_tool.path": path,
-							"agent_tool.output_bytes": content.length,
+							"agent_tool.output_bytes": outputBytes,
 						}),
 					);
 
