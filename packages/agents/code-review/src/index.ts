@@ -243,7 +243,7 @@ Output rules:
 const createReviewPrompt = (request: CodeReviewRequest) => {
 	const targetCommand =
 		request.target === "working"
-			? "Review the current working tree changes. Start with `git status --short` and `git diff --stat`, then inspect `git diff`."
+			? "Review staged, unstaged, and untracked working-tree changes. Start with `git status --short`, `git diff --stat`, and `git diff --cached --stat`, then inspect `git diff` and `git diff --cached`. Inspect untracked files with Agent Tools when they are part of the Review Target."
 			: `Review committed branch changes against base ${request.base}. Start with \`git diff --stat ${request.base}...HEAD\`, then inspect \`git diff ${request.base}...HEAD\`.`;
 
 	return `Review command input:

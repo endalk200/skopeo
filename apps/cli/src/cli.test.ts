@@ -108,6 +108,7 @@ describe("skopeo CLI", () => {
 			assert.include(stdoutText, "skopeo <subcommand> [flags]");
 			assert.include(stdoutText, "Analyze code changes");
 			assert.include(stdoutText, "config");
+			assert.include(stdoutText, "review");
 			assert.include(stdoutText, "version");
 		}),
 	);
