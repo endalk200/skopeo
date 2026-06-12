@@ -25,9 +25,9 @@
 		"@types/node": "^25.9.2",
 		"typescript": "6.0.3",
 		"vitest": "^4.1.8",
-		"@effect/opentelemetry": "4.0.0-beta.78",
-		"@effect/platform-node": "4.0.0-beta.78",
-		"@effect/vitest": "4.0.0-beta.78",
-		"effect": "4.0.0-beta.78"
+		"@effect/opentelemetry": "4.0.0-beta.80",
+		"@effect/platform-node": "4.0.0-beta.80",
+		"@effect/vitest": "4.0.0-beta.80",
+		"effect": "4.0.0-beta.80"
 	}
 }
