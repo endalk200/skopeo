@@ -22,18 +22,18 @@
 	},
 	"devDependencies": {
 		"@skopeo/typescript-config": "workspace:*",
-		"@types/node": "^25.9.2",
-		"@effect/vitest": "4.0.0-beta.80",
+		"@types/node": "^25.9.3",
+		"@effect/vitest": "4.0.0-beta.83",
 		"typescript": "6.0.3",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.9"
 	},
 	"dependencies": {
-		"@effect/opentelemetry": "4.0.0-beta.80",
+		"@effect/opentelemetry": "4.0.0-beta.83",
 		"@opentelemetry/api": "^1.9.1",
 		"@skopeo/tools": "workspace:*",
-		"@tanstack/ai": "^0.28.0",
-		"@tanstack/ai-openai": "^0.14.1",
-		"effect": "4.0.0-beta.80",
+		"@tanstack/ai": "^0.29.0",
+		"@tanstack/ai-openai": "^0.14.2",
+		"effect": "4.0.0-beta.83",
 		"zod": "^4.4.3"
 	}
 }
