@@ -1,0 +1,53 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	"model": "anthropic/claude-sonnet-4-5",
+	"small_model": "anthropic/claude-haiku-4-5",
+	"share": "disabled",
+	"snapshot": false,
+	"permission": {
+		"read": "allow",
+		"glob": "allow",
+		"grep": "allow",
+		"list": "allow",
+		"skill": "allow",
+		"edit": "deny",
+		"bash": {
+			"*": "ask",
+			"git diff*": "allow",
+			"git status*": "allow",
+			"git show*": "allow",
+			"rg *": "allow"
+		},
+		"mcp_everything_*": "ask"
+	},
+	"agent": {
+		"code-review": {
+			"description": "Reviews code changes and reports concrete Review Findings without editing files.",
+			"mode": "primary",
+			"model": "anthropic/claude-sonnet-4-5",
+			"temperature": 0.1,
+			"steps": 16,
+			"prompt": "{file:./prompts/system.md}",
+			"permission": {
+				"edit": "deny",
+				"skill": "allow"
+			}
+		}
+	},
+	"mcp": {
+		"mcp_everything": {
+			"type": "local",
+			"command": ["bun", "x", "@modelcontextprotocol/server-everything"],
+			"enabled": false,
+			"timeout": 5000
+		}
+	},
+	"provider": {
+		"anthropic": {
+			"options": {
+				"timeout": 600000,
+				"chunkTimeout": 30000
+			}
+		}
+	}
+}

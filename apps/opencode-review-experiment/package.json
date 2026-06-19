@@ -1,0 +1,30 @@
+{
+	"name": "@skopeo/opencode-review-experiment",
+	"version": "0.0.0",
+	"description": "Self-contained experiment for building a code review agent with the OpenCode SDK.",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"opencode-review-experiment": "./dist/index.js"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"check-types": "tsc -p tsconfig.json --noEmit",
+		"format": "biome format --write package.json tsconfig.json README.md SDK_GUIDE.md src examples .opencode/tools fixtures/review-target/src",
+		"format:check": "biome format package.json tsconfig.json README.md SDK_GUIDE.md src examples .opencode/tools fixtures/review-target/src",
+		"inspect": "bun run src/index.ts inspect",
+		"lint": "biome check package.json tsconfig.json README.md SDK_GUIDE.md src examples .opencode/tools fixtures/review-target/src",
+		"lint:fix": "biome check --fix package.json tsconfig.json README.md SDK_GUIDE.md src examples .opencode/tools fixtures/review-target/src",
+		"review": "bun run src/index.ts review",
+		"test": "bun test src"
+	},
+	"dependencies": {
+		"@opencode-ai/sdk": "0.0.0-beta-202606160953"
+	},
+	"devDependencies": {
+		"@skopeo/typescript-config": "workspace:*",
+		"@types/bun": "^1.3.6",
+		"@types/node": "^25.9.2",
+		"typescript": "6.0.3"
+	}
+}
