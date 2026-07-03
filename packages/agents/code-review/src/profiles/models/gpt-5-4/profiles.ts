@@ -1,5 +1,6 @@
 import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile } from "../../types.js";
 import { createGpt54SystemPrompt, createGpt54UserPrompt } from "./prompts.js";
 
@@ -8,7 +9,11 @@ import { createGpt54SystemPrompt, createGpt54UserPrompt } from "./prompts.js";
  * its -mini/-nano/-image-2 variants. The cast borrows the sibling variant's
  * provider-options schema, which is identical across the GPT-5.4 family
  * (reasoning + verbosity + tools), while sending the real model ID to the
- * API at runtime. Remove the cast once @tanstack/ai-openai types "gpt-5.4".
+ * API at runtime.
+ *
+ * TODO(gpt-5.4-cast): remove the cast once @tanstack/ai-openai types
+ * "gpt-5.4" natively, and re-verify the modelOptions schema against the new
+ * typed entry during that dependency bump.
  */
 const gpt54AdapterModelId = "gpt-5.4" as "gpt-5.4-mini";
 
@@ -48,10 +53,7 @@ const makeGpt54Profile = (depth: ReviewDepth, description: string): ReviewProfil
 		return chat({
 			adapter: openaiText(gpt54AdapterModelId),
 			agentLoopStrategy: maxIterations(tuning.maxIterations),
-			context: {
-				currentBranch: request.currentBranch ?? "unknown",
-				workingDirectory: request.environment.currentPath,
-			},
+			context: chatContext(request),
 			messages: [
 				{
 					content: createGpt54UserPrompt(depth, request),
