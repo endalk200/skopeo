@@ -31,8 +31,9 @@
 		"@effect/opentelemetry": "4.0.0-beta.92",
 		"@opentelemetry/api": "^1.9.1",
 		"@skopeo/tools": "workspace:*",
-		"@tanstack/ai": "^0.38.0",
-		"@tanstack/ai-openai": "^0.15.9",
+		"@tanstack/ai": "^0.39.1",
+		"@tanstack/ai-anthropic": "^0.16.0",
+		"@tanstack/ai-openai": "^0.15.10",
 		"effect": "4.0.0-beta.92",
 		"zod": "^4.4.3"
 	}
