@@ -48,6 +48,14 @@ _Avoid_: Config management, configs
 A repository-scoped capability the **Code Review Agent** can invoke while analyzing a **Review Target**.
 _Avoid_: Code review tool, plugin, function
 
+**Review Profile**:
+A bundle of model choice, prompting, and reasoning settings that shapes how the **Code Review Agent** analyzes a **Review Target**.
+_Avoid_: Preset, mode, agent config
+
+**Review Depth**:
+The amount of scrutiny, time, and cost a **Review Profile** spends producing a **Review Report** — quick, standard, or thorough.
+_Avoid_: Reasoning effort, level, light/moderate/heavy
+
 ## Relationships
 
 - A **Review Target** is analyzed by the **Code Review Agent**
@@ -59,3 +67,12 @@ _Avoid_: Code review tool, plugin, function
 - **Release Metadata** identifies the running Skopeo package in user output and telemetry
 - **Skopeo Configuration** influences how Skopeo runs for a **Skopeo User**
 - A **Code Review Agent** may invoke **Agent Tools** while analyzing a **Review Target**
+- A **Review Profile** pairs one **Review Depth** with one model
+- The **Code Review Agent** analyzes each **Review Target** using exactly one **Review Profile**
+
+## Example dialogue
+
+> **Dev:** "If I want a deeper review, do I just raise the model's reasoning effort?"
+> **Domain expert:** "No — you pick a **Review Profile** with a higher **Review Depth**. Reasoning effort is one vendor knob inside the profile; the prompts and tool budget change along with it."
+> **Dev:** "And if I keep the **Review Depth** but switch the profile to another model?"
+> **Domain expert:** "The whole bundle swaps. Each model has its own prompts tuned to it, so only the **Review Depth** intent carries over — never the other model's prompts or settings."
