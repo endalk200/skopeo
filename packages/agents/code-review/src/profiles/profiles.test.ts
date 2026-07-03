@@ -57,6 +57,7 @@ for (const [name, createSystemPrompt, createUserPrompt] of gptPromptBuilders) {
 			assert.include(prompt, "Current path: /workspace/skopeo");
 			assert.include(prompt, "Date/time: 2026-06-11T00:00:00.000Z");
 			assert.include(prompt, "Tool paths may be absolute or relative");
+			assert.include(prompt, "relative paths resolve from the repository root");
 			assert.include(prompt, "repository-scoped");
 			assert.include(prompt, "you are reviewing, not editing");
 		});
@@ -64,7 +65,7 @@ for (const [name, createSystemPrompt, createUserPrompt] of gptPromptBuilders) {
 		it("scales the retrieval budget with Review Depth", () => {
 			assert.include(createSystemPrompt("quick", request), "at most 8 Agent Tool calls");
 			assert.include(createSystemPrompt("standard", request), "at most 20 Agent Tool calls");
-			assert.include(createSystemPrompt("thorough", request), "No fixed retrieval budget");
+			assert.include(createSystemPrompt("thorough", request), "up to 40 rounds of Agent Tool use");
 		});
 
 		it("keeps the quick pass inside the diff in the user prompt", () => {
@@ -80,7 +81,9 @@ describe("createOpus48SystemPrompt", () => {
 
 		assert.include(prompt, "OS: darwin");
 		assert.include(prompt, "Current path: /workspace/skopeo");
+		assert.include(prompt, "Date/time: 2026-06-11T00:00:00.000Z");
 		assert.include(prompt, "Tool paths may be absolute or relative");
+		assert.include(prompt, "relative paths resolve from the repository root");
 		assert.include(prompt, "repository-scoped");
 		assert.include(prompt, "you are reviewing, not editing");
 	});

@@ -13,8 +13,8 @@ const runtimeContext = (request: CodeReviewRequest) => `- OS: ${request.environm
  * Per-tool usage guidance belongs in each Agent Tool's own description; only
  * policy that spans tools lives here.
  */
-const agentToolPolicy = `- Tool paths may be absolute or relative; relative paths resolve from the current path.
-- The tools are repository-scoped and cannot read or run commands outside the current path.
+const agentToolPolicy = `- Tool paths may be absolute or relative; relative paths resolve from the repository root.
+- The tools are repository-scoped and cannot read or run commands outside the repository root.
 - Do not attempt to read secret-bearing files or run destructive commands.
 - Do not modify files or repository state; you are reviewing, not editing.`;
 
