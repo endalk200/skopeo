@@ -1,5 +1,6 @@
 import { chat, maxIterations } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
+import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile } from "../../types.js";
 import { createOpus48SystemPrompt, createOpus48UserPrompt } from "./prompts.js";
 
@@ -41,10 +42,7 @@ const makeOpus48Profile = (depth: ReviewDepth, description: string): ReviewProfi
 		return chat({
 			adapter: anthropicText("claude-opus-4-8"),
 			agentLoopStrategy: maxIterations(tuning.maxIterations),
-			context: {
-				currentBranch: request.currentBranch ?? "unknown",
-				workingDirectory: request.environment.currentPath,
-			},
+			context: chatContext(request),
 			messages: [
 				{
 					content: createOpus48UserPrompt(depth, request),

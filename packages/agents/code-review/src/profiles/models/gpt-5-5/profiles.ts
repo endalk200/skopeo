@@ -1,5 +1,6 @@
 import { chat, maxIterations } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
+import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile } from "../../types.js";
 import { createGpt55SystemPrompt, createGpt55UserPrompt } from "./prompts.js";
 
@@ -42,10 +43,7 @@ const makeGpt55Profile = (depth: ReviewDepth, description: string): ReviewProfil
 		return chat({
 			adapter: openaiText("gpt-5.5"),
 			agentLoopStrategy: maxIterations(tuning.maxIterations),
-			context: {
-				currentBranch: request.currentBranch ?? "unknown",
-				workingDirectory: request.environment.currentPath,
-			},
+			context: chatContext(request),
 			messages: [
 				{
 					content: createGpt55UserPrompt(depth, request),
