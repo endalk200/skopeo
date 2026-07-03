@@ -24,7 +24,7 @@ const contextGatheringByDepth: Record<ReviewDepth, string> = {
 	standard: `- Retrieval budget: at most 20 Agent Tool calls. If the budget runs out, report what you verified and list the rest as unverified.
 - Read the diff first; open a nearby file, test, or type definition only when a suspected Review Finding depends on it.
 - After each tool result, ask: can I produce the Review Report now? If yes, stop gathering and write it.`,
-	thorough: `- No fixed retrieval budget; stop when the stop conditions are met, not before.
+	thorough: `- Retrieval budget: up to 40 rounds of Agent Tool use — generous, but finite. If the budget runs out, report what you verified and list the rest as unverified.
 - Stop conditions: every changed hunk has been read; every Review Finding cites code you opened this run; tests and type definitions adjacent to changed behavior have been checked for coverage of the change.
 - Do not re-read files you have already seen unless a later finding depends on them.`,
 };
