@@ -9,6 +9,9 @@ import {
 	parseDevToolsEnabledEnv,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
+	REVIEW_DEPTH_ENV,
+	REVIEW_MODEL_ENV,
+	type SkopeoConfiguration,
 	TELEMETRY_ENV,
 } from "@skopeo/config";
 import { Effect, FileSystem, Layer, Logger, Path, Stdio, Terminal } from "effect";
@@ -16,6 +19,7 @@ import { TestConsole } from "effect/testing";
 import { CliOutput } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { configValidationHasFailures, formatConfigValidationReport } from "./cli/commands/config/validate.cmd.js";
+import { resolveReviewPlan } from "./cli/commands/review.cmd.js";
 import { runCliWithArgs } from "./cli/run.js";
 import { handleCliFailure } from "./runtime/failures.js";
 import {
@@ -26,6 +30,13 @@ import {
 
 const require = createRequire(import.meta.url);
 const cliPackage = require("../package.json") as { readonly version: string };
+
+const testConfiguration = (parts: Pick<SkopeoConfiguration, "telemetry" | "devtools">): SkopeoConfiguration => ({
+	...parts,
+	review: { model: "gpt-5.5", depth: "standard" },
+	providers: [],
+	models: [],
+});
 
 const TerminalLayer = Layer.succeed(
 	Terminal.Terminal,
@@ -63,33 +74,56 @@ const cliTestLayer = (files: Record<string, string> = {}) =>
 		withoutConsoleLogger,
 	);
 
-const skopeoEnvKeys = [CONFIG_PATH_ENV, TELEMETRY_ENV, OTLP_ENDPOINT_ENV, DEVTOOLS_ENV] as const;
+// Every environment variable Skopeo reads: config/review overrides plus the
+// well-known provider key variables consulted by semantic model-access
+// checks. Isolating all of them keeps test output identical regardless of
+// what the developer's shell exports.
+const skopeoEnvKeys = [
+	CONFIG_PATH_ENV,
+	TELEMETRY_ENV,
+	OTLP_ENDPOINT_ENV,
+	DEVTOOLS_ENV,
+	REVIEW_MODEL_ENV,
+	REVIEW_DEPTH_ENV,
+	"OPENAI_API_KEY",
+	"ANTHROPIC_API_KEY",
+	"OPENROUTER_API_KEY",
+] as const;
 
-const withIsolatedSkopeoEnvironment = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-	Effect.suspend(() => {
-		const previous = Object.fromEntries(skopeoEnvKeys.map((key) => [key, process.env[key]]));
+const withIsolatedSkopeoEnvironment =
+	(overrides: Record<string, string> = {}) =>
+	<A, E, R>(effect: Effect.Effect<A, E, R>) =>
+		Effect.suspend(() => {
+			const previous = Object.fromEntries(skopeoEnvKeys.map((key) => [key, process.env[key]]));
 
-		for (const key of skopeoEnvKeys) {
-			delete process.env[key];
-		}
+			for (const key of skopeoEnvKeys) {
+				delete process.env[key];
+			}
+			for (const [key, value] of Object.entries(overrides)) {
+				process.env[key] = value;
+			}
 
-		return effect.pipe(
-			Effect.ensuring(
-				Effect.sync(() => {
-					for (const key of skopeoEnvKeys) {
-						const value = previous[key];
-						if (value === undefined) {
-							delete process.env[key];
-						} else {
-							process.env[key] = value;
+			return effect.pipe(
+				Effect.ensuring(
+					Effect.sync(() => {
+						for (const key of skopeoEnvKeys) {
+							const value = previous[key];
+							if (value === undefined) {
+								delete process.env[key];
+							} else {
+								process.env[key] = value;
+							}
 						}
-					}
-				}),
-			),
-		);
-	});
+					}),
+				),
+			);
+		});
 
-const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, string> = {}) =>
+const runSkopeoCommand = (
+	args: ReadonlyArray<string>,
+	files: Record<string, string> = {},
+	env: Record<string, string> = {},
+) =>
 	Effect.gen(function* () {
 		yield* runCliWithArgs(args);
 
@@ -97,7 +131,22 @@ const runSkopeoCommand = (args: ReadonlyArray<string>, files: Record<string, str
 			stdout: yield* TestConsole.logLines,
 			stderr: yield* TestConsole.errorLines,
 		};
-	}).pipe(withIsolatedSkopeoEnvironment, Effect.provide(cliTestLayer(files)));
+	}).pipe(withIsolatedSkopeoEnvironment(env), Effect.provide(cliTestLayer(files)));
+
+const runSkopeoCommandExpectingFailure = (
+	args: ReadonlyArray<string>,
+	files: Record<string, string> = {},
+	env: Record<string, string> = {},
+) =>
+	Effect.gen(function* () {
+		const failure = yield* Effect.flip(runCliWithArgs(args));
+
+		return {
+			failure,
+			stdout: yield* TestConsole.logLines,
+			stderr: yield* TestConsole.errorLines,
+		};
+	}).pipe(withIsolatedSkopeoEnvironment(env), Effect.provide(cliTestLayer(files)));
 
 describe("skopeo CLI", () => {
 	it.effect("prints root help and succeeds when invoked without arguments", () =>
@@ -138,6 +187,26 @@ describe("skopeo CLI", () => {
 			assert.include(stdoutText, "No config file found");
 			assert.include(stdoutText, "Environment overrides are valid");
 			assert.include(stdoutText, "Valid Skopeo Configuration.");
+		}),
+	);
+
+	it.effect("never prints the success verdict when semantic Model Provider checks fail", () =>
+		Effect.gen(function* () {
+			// SKOPEO_REVIEW_MODEL passes structural validation (any non-empty
+			// string) but fails the registry-dependent semantic check.
+			const { failure, stdout } = yield* runSkopeoCommandExpectingFailure(
+				["config", "validate"],
+				{},
+				{
+					[REVIEW_MODEL_ENV]: "gpt-6",
+				},
+			);
+			const stdoutText = stdout.join("\n");
+
+			assert.strictEqual((failure as { _tag?: string })._tag, "ConfigValidationFailed");
+			assert.notInclude(stdoutText, "Valid Skopeo Configuration.");
+			assert.include(stdoutText, "Invalid Skopeo Configuration: Model Provider checks failed.");
+			assert.include(stdoutText, 'Error: [review] model: "gpt-6" is not a code-defined Review Profile model');
 		}),
 	);
 
@@ -191,15 +260,17 @@ describe("skopeo CLI", () => {
 			assert.strictEqual(loggers.size, 0);
 		}).pipe(
 			Effect.provide(
-				telemetryLayerFromConfiguration({
-					telemetry: {
-						enabled: false,
-						otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
-					},
-					devtools: {
-						enabled: true,
-					},
-				}),
+				telemetryLayerFromConfiguration(
+					testConfiguration({
+						telemetry: {
+							enabled: false,
+							otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
+						},
+						devtools: {
+							enabled: true,
+						},
+					}),
+				),
 			),
 		),
 	);
@@ -219,15 +290,17 @@ describe("skopeo CLI", () => {
 				]);
 			}).pipe(
 				Effect.provide(
-					telemetryLayerFromConfiguration({
-						telemetry: {
-							enabled: true,
-							otlpEndpoint: "http://127.0.0.1:65535",
-						},
-						devtools: {
-							enabled: false,
-						},
-					}),
+					telemetryLayerFromConfiguration(
+						testConfiguration({
+							telemetry: {
+								enabled: true,
+								otlpEndpoint: "http://127.0.0.1:65535",
+							},
+							devtools: {
+								enabled: false,
+							},
+						}),
+					),
 				),
 				Effect.ensuring(
 					Effect.sync(() => {
@@ -251,15 +324,17 @@ describe("skopeo CLI", () => {
 				assert.deepStrictEqual(stderr, []);
 			}).pipe(
 				Effect.provide(
-					telemetryLayerFromConfiguration({
-						telemetry: {
-							enabled: true,
-							otlpEndpoint: "http://127.0.0.1:27686",
-						},
-						devtools: {
-							enabled: false,
-						},
-					}),
+					telemetryLayerFromConfiguration(
+						testConfiguration({
+							telemetry: {
+								enabled: true,
+								otlpEndpoint: "http://127.0.0.1:27686",
+							},
+							devtools: {
+								enabled: false,
+							},
+						}),
+					),
 				),
 				Effect.ensuring(
 					Effect.sync(() => {
@@ -286,6 +361,31 @@ describe("skopeo CLI", () => {
 			const stderr = yield* TestConsole.errorLines;
 
 			assert.deepStrictEqual(stderr, ['Invalid SKOPEO_CONFIG_PATH value "". Expected a non-empty path.']);
+		}).pipe(Effect.provide(TestConsole.layer)),
+	);
+
+	it.effect("reports invalid review flag combinations with an actionable message", () =>
+		Effect.gen(function* () {
+			const failure = yield* Effect.flip(
+				resolveReviewPlan({
+					base: "main",
+					currentBranch: "feature/x",
+					currentBranchHead: "abc123",
+					format: "markdown",
+					mainBranch: "main",
+					repositoryRoot: "/repo",
+					target: "working",
+				}),
+			);
+
+			// A tagged error keeps the failure inside the program's
+			// catchTags-based reporting instead of exiting silently.
+			assert.strictEqual(failure._tag, "InvalidReviewFlags");
+			yield* Effect.flip(handleCliFailure.InvalidReviewFlags(failure));
+
+			const stderr = yield* TestConsole.errorLines;
+
+			assert.deepStrictEqual(stderr, ["--base cannot be used with --target working"]);
 		}).pipe(Effect.provide(TestConsole.layer)),
 	);
 });

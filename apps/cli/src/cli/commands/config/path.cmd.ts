@@ -7,11 +7,9 @@ export const pathCommand = Command.make("path").pipe(
 	Command.withShortDescription("Print config path"),
 	Command.withHandler(() =>
 		Effect.gen(function* () {
-			Effect.annotateCurrentSpan({
-				attributes: {
-					"cli.command": "config path",
-					"skopeo.command": "config path",
-				},
+			yield* Effect.annotateCurrentSpan({
+				"cli.command": "config path",
+				"skopeo.command": "config path",
 			});
 
 			const path = yield* resolveConfigPath();

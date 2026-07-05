@@ -7,11 +7,9 @@ export const initCommand = Command.make("init").pipe(
 	Command.withShortDescription("Create config file"),
 	Command.withHandler(() =>
 		Effect.gen(function* () {
-			Effect.annotateCurrentSpan({
-				attributes: {
-					"cli.command": "config init",
-					"skopeo.command": "config init",
-				},
+			yield* Effect.annotateCurrentSpan({
+				"cli.command": "config init",
+				"skopeo.command": "config init",
 			});
 
 			const path = yield* initSkopeoConfig;
