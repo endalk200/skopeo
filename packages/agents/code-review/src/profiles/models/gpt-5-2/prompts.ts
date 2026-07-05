@@ -3,14 +3,20 @@ import { agentToolPolicy, reviewCommandInput, runtimeContext, targetInstructions
 import type { ReviewDepth } from "../../types.js";
 
 /**
- * GPT-5.5 prompt tuning notes (OpenAI GPT-5.x prompting guidance):
+ * GPT-5.2 prompt tuning notes (OpenAI GPT-5.x prompting guidance):
+ *
+ * GPT-5.2 is an earlier tier of the GPT-5.x line, primarily reached through
+ * hosted gateways (e.g. Azure deployments). It follows the same published
+ * prompting guidance as the rest of the GPT-5.x family. These prompts
+ * currently match the GPT-5.4 ones by design, but are kept self-contained so
+ * they can drift independently as the models are evaluated:
  *
  * - Outcome-first prompts: goal, constraints, output contract, explicit stop
  *   rules. Step-by-step process guidance adds noise and is omitted.
  * - No "be thorough" steering: it causes tool overuse. Depth is expressed as
  *   retrieval budgets and stop conditions instead; reasoning depth comes from
  *   the `reasoning.effort` model option, not the prompt.
- * - GPT-5.5 follows instructions literally; contradictory instructions burn
+ * - GPT-5.2 follows instructions literally; contradictory instructions burn
  *   reasoning tokens, so each depth states one consistent evidence bar.
  * - Tagged sections improve adherence for the GPT-5.x family.
  * - Report length is controlled by the `verbosity` model option, so the
@@ -36,9 +42,9 @@ const evidenceBarByDepth: Record<ReviewDepth, string> = {
 };
 
 /**
- * Builds the GPT-5.5 system prompt for the given Review Depth.
+ * Builds the GPT-5.2 system prompt for the given Review Depth.
  */
-const createGpt55SystemPrompt = (
+const createGpt52SystemPrompt = (
 	depth: ReviewDepth,
 	request: CodeReviewRequest,
 ) => `You are Skopeo, a pragmatic senior engineer acting as a Code Review Agent.
@@ -71,9 +77,9 @@ ${contextGatheringByDepth[depth]}
 </output_contract>`;
 
 /**
- * Builds the GPT-5.5 user prompt for the given Review Depth.
+ * Builds the GPT-5.2 user prompt for the given Review Depth.
  */
-const createGpt55UserPrompt = (depth: ReviewDepth, request: CodeReviewRequest) => {
+const createGpt52UserPrompt = (depth: ReviewDepth, request: CodeReviewRequest) => {
 	const depthFocus =
 		depth === "quick"
 			? "\n\nThis is a quick pass: stay inside the diff hunks or untracked files listed by `git status --short`; do not expand into unrelated files."
@@ -87,4 +93,4 @@ ${targetInstructions(request)}${depthFocus}
 Use the command input to decide the Review Target. Produce the Review Report in ${request.format} format.`;
 };
 
-export { createGpt55SystemPrompt, createGpt55UserPrompt };
+export { createGpt52SystemPrompt, createGpt52UserPrompt };

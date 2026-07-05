@@ -1,3 +1,5 @@
+import { SkopeoConfig } from "@skopeo/config";
+import { ModelProviderService } from "@skopeo/providers";
 import {
 	type AgentToolRuntimeDependencies,
 	type BashAgentTool,
@@ -8,7 +10,7 @@ import {
 } from "@skopeo/tools";
 import type { ChatMiddleware } from "@tanstack/ai";
 import { Console, Context, Effect, Layer } from "effect";
-import { activeReviewProfile } from "./profiles/index.js";
+import { resolveReviewProfile } from "./profiles/index.js";
 import type { CodeReviewEnvironment, CodeReviewFormat, CodeReviewRequest, CodeReviewTarget } from "./request.js";
 
 type CodeReviewAgentToolServices = ReadFileAgentTool | BashAgentTool;
@@ -26,20 +28,27 @@ class CodeReviewService extends Context.Service<
 /**
  * Live Code Review Agent service layer.
  *
- * The implementation creates repository-scoped Agent Tools for each request,
- * runs the active Review Profile, and prints the resulting Review Report.
+ * The implementation resolves the Default Review Profile from Skopeo
+ * Configuration, obtains the model's chat adapter from the
+ * ModelProviderService, creates repository-scoped Agent Tools for each
+ * request, runs the profile, and prints the resulting Review Report.
  */
 const CodeReviewServiceLive = Layer.effect(
 	CodeReviewService,
 	Effect.gen(function* () {
+		const config = yield* SkopeoConfig;
+		const modelProviders = yield* ModelProviderService;
+
 		return CodeReviewService.of({
 			review: (request) =>
 				Effect.fn("review")(function* () {
-					const context = yield* Effect.context<AgentToolRuntimeDependencies>();
-					const runEffect = Effect.runPromiseWith(context);
+					const runEffect = Effect.runPromiseWith(yield* Effect.context<AgentToolRuntimeDependencies>());
+
 					const toolLayer = makeAgentToolsLayer({ repositoryRoot: request.repositoryRoot });
+
 					const runToolEffect = <A, E>(effect: Effect.Effect<A, E, CodeReviewAgentToolServices>) =>
 						runEffect(effect.pipe(Effect.provide(toolLayer)));
+
 					const readFileToolDefinition = makeReadFileToolDefinition({ runEffect: runToolEffect });
 					const bashToolDefinition = makeBashToolDefinition({ runEffect: runToolEffect });
 
@@ -135,19 +144,39 @@ const CodeReviewServiceLive = Layer.effect(
 						},
 					};
 
+					// Resolving model access first surfaces unknown configured models
+					// as a typed UnknownReviewModel error with the known-model list.
+					const access = yield* modelProviders.adapterFor(config.review.model);
+
+					const profile = resolveReviewProfile({ depth: config.review.depth, model: access.model });
+					if (profile === undefined) {
+						// The providers registry accepted the model, so the profile
+						// registry must know it too — a mismatch is a code bug.
+						return yield* Effect.die(
+							new Error(
+								`Model "${access.model}" has provider access defaults but no Review Profile registered.`,
+							),
+						);
+					}
+
 					yield* Effect.logInfo("Running Review Profile").pipe(
 						Effect.annotateLogs({
-							"review_profile.id": activeReviewProfile.id,
-							"review_profile.model": activeReviewProfile.model,
-							"review_profile.depth": activeReviewProfile.depth,
+							"review_profile.id": profile.id,
+							"review_profile.model": profile.model,
+							"review_profile.depth": profile.depth,
+							"review_profile.provider": access.provider,
+							"review_profile.wire_model_id": access.wireModelId,
+							"review_profile.wire_dialect": access.wireDialect,
 						}),
 					);
 
 					const report = yield* Effect.tryPromise(() =>
-						activeReviewProfile.run({
+						profile.run({
+							adapter: access.adapter,
 							middleware: [loggerMiddleware],
 							request,
 							tools: [readFileToolDefinition, bashToolDefinition],
+							wireDialect: access.wireDialect,
 						}),
 					);
 

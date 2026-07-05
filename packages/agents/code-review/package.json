@@ -30,6 +30,8 @@
 	"dependencies": {
 		"@effect/opentelemetry": "4.0.0-beta.92",
 		"@opentelemetry/api": "^1.9.1",
+		"@skopeo/config": "workspace:*",
+		"@skopeo/providers": "workspace:*",
 		"@skopeo/tools": "workspace:*",
 		"@tanstack/ai": "^0.39.1",
 		"@tanstack/ai-anthropic": "^0.16.0",
