@@ -52,9 +52,17 @@ _Avoid_: Code review tool, plugin, function
 A bundle of model choice, prompting, and reasoning settings that shapes how the **Code Review Agent** analyzes a **Review Target**.
 _Avoid_: Preset, mode, agent config
 
+**Default Review Profile**:
+The **Review Profile** Skopeo uses when a **Skopeo User** has not selected a profile for a specific run.
+_Avoid_: Active profile, global profile, default provider
+
 **Review Depth**:
 The amount of scrutiny, time, and cost a **Review Profile** spends producing a **Review Report** — quick, standard, or thorough.
 _Avoid_: Reasoning effort, level, light/moderate/heavy
+
+**Model Provider**:
+A service through which the **Code Review Agent** reaches a model — such as OpenAI, Anthropic, OpenRouter, or a custom AI gateway. The same model may be reachable through more than one Model Provider.
+_Avoid_: Vendor, backend, LLM provider
 
 ## Relationships
 
@@ -68,6 +76,9 @@ _Avoid_: Reasoning effort, level, light/moderate/heavy
 - **Skopeo Configuration** influences how Skopeo runs for a **Skopeo User**
 - A **Code Review Agent** may invoke **Agent Tools** while analyzing a **Review Target**
 - A **Review Profile** pairs one **Review Depth** with one model
+- A model may be reachable through one or more **Model Providers**
+- The **Code Review Agent** reaches each model through exactly one **Model Provider** per run
+- **Skopeo Configuration** may identify a **Default Review Profile**
 - The **Code Review Agent** analyzes each **Review Target** using exactly one **Review Profile**
 
 ## Example dialogue
