@@ -1,6 +1,7 @@
-import { opus48QuickProfile, opus48StandardProfile, opus48ThoroughProfile } from "./models/claude-opus-4-8/profiles.js";
-import { gpt54QuickProfile, gpt54StandardProfile, gpt54ThoroughProfile } from "./models/gpt-5-4/profiles.js";
-import { gpt55QuickProfile, gpt55StandardProfile, gpt55ThoroughProfile } from "./models/gpt-5-5/profiles.js";
+import * as OPUS_4_8_PROFILES from "./models/claude-opus-4-8/profiles.js";
+import * as GPT_5_2_PROFILES from "./models/gpt-5-2/profiles.js";
+import * as GPT_5_4_PROFILES from "./models/gpt-5-4/profiles.js";
+import * as GPT_5_5_PROFILES from "./models/gpt-5-5/profiles.js";
 import type { ReviewDepth, ReviewProfile, ReviewProfileChatParams, ReviewProfileModel } from "./types.js";
 
 /**
@@ -18,35 +19,55 @@ import type { ReviewDepth, ReviewProfile, ReviewProfileChatParams, ReviewProfile
  *    prompting guidance) and `profiles.ts` (reasoning tuning per Review Depth
  *    and the vendor chat call). Do not share prompts or tuning between model
  *    folders — models drift independently as they are evaluated.
- * 2. Add the model ID to `ReviewProfileModel` in `types.ts`.
- * 3. Register the three depth variants below — the `satisfies` clause fails
- *    compilation until every depth has an entry for the new model.
+ * 2. Every model module exports the same `ReviewProfileModule` shape — plain
+ *    `quick` / `standard` / `thorough` bindings asserted with `satisfies` —
+ *    so a copied folder needs no export renaming and a missing depth fails
+ *    compilation inside the module itself.
+ * 3. Add the model ID to `ReviewProfileModel` in `types.ts`.
+ * 4. Import the module as `<MODEL_ID>_PROFILES` and register its three depth
+ *    variants below — the registry `satisfies` clause fails compilation until
+ *    every depth has an entry for the new model.
  */
 const reviewProfiles = {
 	quick: {
-		"claude-opus-4-8": opus48QuickProfile,
-		"gpt-5.4": gpt54QuickProfile,
-		"gpt-5.5": gpt55QuickProfile,
+		"claude-opus-4-8": OPUS_4_8_PROFILES.quick,
+		"gpt-5.2": GPT_5_2_PROFILES.quick,
+		"gpt-5.4": GPT_5_4_PROFILES.quick,
+		"gpt-5.5": GPT_5_5_PROFILES.quick,
 	},
 	standard: {
-		"claude-opus-4-8": opus48StandardProfile,
-		"gpt-5.4": gpt54StandardProfile,
-		"gpt-5.5": gpt55StandardProfile,
+		"claude-opus-4-8": OPUS_4_8_PROFILES.standard,
+		"gpt-5.2": GPT_5_2_PROFILES.standard,
+		"gpt-5.4": GPT_5_4_PROFILES.standard,
+		"gpt-5.5": GPT_5_5_PROFILES.standard,
 	},
 	thorough: {
-		"claude-opus-4-8": opus48ThoroughProfile,
-		"gpt-5.4": gpt54ThoroughProfile,
-		"gpt-5.5": gpt55ThoroughProfile,
+		"claude-opus-4-8": OPUS_4_8_PROFILES.thorough,
+		"gpt-5.2": GPT_5_2_PROFILES.thorough,
+		"gpt-5.4": GPT_5_4_PROFILES.thorough,
+		"gpt-5.5": GPT_5_5_PROFILES.thorough,
 	},
 } as const satisfies Record<ReviewDepth, Record<ReviewProfileModel, ReviewProfile>>;
 
 /**
- * The Review Profile used by the Code Review Agent.
- *
- * Switching profiles is a deliberate manual code change: edit this one
- * assignment, e.g. `reviewProfiles.thorough["claude-opus-4-8"]`.
+ * Narrows a configured model string to a Review Profile model. The set of
+ * models is code-defined (ADR 0007); Skopeo Configuration only picks one.
+ * `Object.hasOwn` keeps inherited keys like "toString" from passing.
  */
-const activeReviewProfile: ReviewProfile = reviewProfiles.standard["gpt-5.5"];
+const isReviewProfileModel = (value: string): value is ReviewProfileModel =>
+	Object.hasOwn(reviewProfiles.standard, value);
+
+/**
+ * Resolves the Default Review Profile from Skopeo Configuration's `[review]`
+ * selection. Returns `undefined` when the configured model has no
+ * code-defined Review Profile — semantic validation and the run-time
+ * ModelProviderService both surface that as an unknown-model error.
+ */
+const resolveReviewProfile = (selection: {
+	readonly depth: ReviewDepth;
+	readonly model: string;
+}): ReviewProfile | undefined =>
+	isReviewProfileModel(selection.model) ? reviewProfiles[selection.depth][selection.model] : undefined;
 
 export type { ReviewDepth, ReviewProfile, ReviewProfileChatParams, ReviewProfileModel };
-export { activeReviewProfile, reviewProfiles };
+export { isReviewProfileModel, resolveReviewProfile, reviewProfiles };

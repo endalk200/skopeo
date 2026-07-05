@@ -24,7 +24,7 @@ import type { ReviewDepth } from "../../types.js";
 
 const contextGatheringByDepth: Record<ReviewDepth, string> = {
 	quick: `- Retrieval budget: at most 8 Agent Tool calls. If the budget runs out, report what you verified and list the rest as unverified.
-- Read only the diff and files directly referenced by the diff.
+- Read only the diff, files directly referenced by the diff, and untracked files listed by \`git status --short\` when the Review Target is the working tree.
 - After each tool result, ask: can I produce the Review Report now? If yes, stop gathering and write it.`,
 	standard: `- Retrieval budget: at most 20 Agent Tool calls. If the budget runs out, report what you verified and list the rest as unverified.
 - Read the diff first; open a nearby file, test, or type definition only when a suspected Review Finding depends on it.
@@ -81,7 +81,7 @@ ${contextGatheringByDepth[depth]}
 const createGpt54UserPrompt = (depth: ReviewDepth, request: CodeReviewRequest) => {
 	const depthFocus =
 		depth === "quick"
-			? "\n\nThis is a quick pass: stay inside the diff hunks and do not expand into unrelated files."
+			? "\n\nThis is a quick pass: stay inside the diff hunks or untracked files listed by `git status --short`; do not expand into unrelated files."
 			: "";
 
 	return `Review command input:

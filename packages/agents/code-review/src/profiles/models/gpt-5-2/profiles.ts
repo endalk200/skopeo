@@ -2,10 +2,10 @@ import type { ModelWireDialect } from "@skopeo/providers";
 import { chat, maxIterations } from "@tanstack/ai";
 import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile, ReviewProfileModule } from "../../types.js";
-import { createGpt54SystemPrompt, createGpt54UserPrompt } from "./prompts.js";
+import { createGpt52SystemPrompt, createGpt52UserPrompt } from "./prompts.js";
 
 /**
- * GPT-5.4 reasoning tuning per Review Depth (OpenAI reasoning guidance):
+ * GPT-5.2 reasoning tuning per Review Depth (OpenAI reasoning guidance):
  *
  * - `low`: efficient reasoning for execution-oriented passes over small scopes.
  * - `medium`: OpenAI's balanced default for agentic coding work.
@@ -15,13 +15,13 @@ import { createGpt54SystemPrompt, createGpt54UserPrompt } from "./prompts.js";
  * Higher effort is not automatically better: without the stop rules in the
  * prompts it over-searches, so effort and prompt budgets move together.
  */
-type Gpt54Tuning = {
+type Gpt52Tuning = {
 	readonly reasoningEffort: "low" | "medium" | "high";
 	readonly verbosity: "low" | "medium";
 	readonly maxIterations: number;
 };
 
-const tuningByDepth: Record<ReviewDepth, Gpt54Tuning> = {
+const tuningByDepth: Record<ReviewDepth, Gpt52Tuning> = {
 	quick: { maxIterations: 10, reasoningEffort: "low", verbosity: "low" },
 	standard: { maxIterations: 20, reasoningEffort: "medium", verbosity: "medium" },
 	thorough: { maxIterations: 40, reasoningEffort: "high", verbosity: "medium" },
@@ -53,14 +53,14 @@ const wireModelOptions = (depth: ReviewDepth, wireDialect: ModelWireDialect): Re
 	}
 };
 
-const makeGpt54Profile = (depth: ReviewDepth, description: string): ReviewProfile => ({
+const makeGpt52Profile = (depth: ReviewDepth, description: string): ReviewProfile => ({
 	depth,
 	description,
-	id: `${depth}:gpt-5.4`,
-	model: "gpt-5.4",
+	id: `${depth}:gpt-5.2`,
+	model: "gpt-5.2",
 	// The adapter arrives resolved from the ModelProviderService, so which
-	// Model Provider serves GPT-5.4 and its API key are access concerns
-	// handled outside the profile.
+	// Model Provider serves GPT-5.2 (OpenAI, OpenRouter, a gateway) and its
+	// API key are access concerns handled outside the profile.
 	run: ({ adapter, wireDialect, request, tools, middleware }) => {
 		const tuning = tuningByDepth[depth];
 
@@ -70,31 +70,28 @@ const makeGpt54Profile = (depth: ReviewDepth, description: string): ReviewProfil
 			context: chatContext(request),
 			messages: [
 				{
-					content: createGpt54UserPrompt(depth, request),
+					content: createGpt52UserPrompt(depth, request),
 					role: "user",
 				},
 			],
 			middleware: [...middleware],
 			modelOptions: wireModelOptions(depth, wireDialect),
 			stream: false,
-			systemPrompts: [createGpt54SystemPrompt(depth, request)],
+			systemPrompts: [createGpt52SystemPrompt(depth, request)],
 			tools: [...tools],
 		});
 	},
 });
 
 const { quick, standard, thorough } = {
-	quick: makeGpt54Profile(
+	quick: makeGpt52Profile(
 		"quick",
-		"Fast diff-focused pass on GPT-5.4 with low reasoning effort and a strict retrieval budget.",
+		"Fast diff-focused pass on GPT-5.2 with low reasoning effort and a strict retrieval budget.",
 	),
-	standard: makeGpt54Profile(
-		"standard",
-		"Balanced everyday review on GPT-5.4 with medium reasoning effort at lower cost than GPT-5.5.",
-	),
-	thorough: makeGpt54Profile(
+	standard: makeGpt52Profile("standard", "Balanced everyday review on GPT-5.2 with medium reasoning effort."),
+	thorough: makeGpt52Profile(
 		"thorough",
-		"Deep audit on GPT-5.4 with high reasoning effort and evidence-verified Review Findings.",
+		"Deep audit on GPT-5.2 with high reasoning effort and evidence-verified Review Findings.",
 	),
 } satisfies ReviewProfileModule;
 

@@ -32,8 +32,8 @@ const investigationByDepth: Record<ReviewDepth, string> = {
 
 const reportingBarByDepth: Record<ReviewDepth, string> = {
 	quick: `Report Review Findings that could cause incorrect behavior, a test failure, data loss, or a security vulnerability. Skip style commentary and refactoring suggestions.`,
-	standard: `Report every Review Finding you identify, including ones you are uncertain about. For each, include your confidence level and an estimated Finding Severity. Do not silently drop findings you consider minor; label them instead.`,
-	thorough: `Report every Review Finding you identify, including ones you are uncertain about. For each, include your confidence level and an estimated Finding Severity. Do not filter findings out yourself; the Skopeo User decides what to act on.`,
+	standard: `Report every Review Finding you can support with code you opened this run, including lower-confidence ones. For each, include your confidence level and an estimated Finding Severity. Do not report suspicion-only items; if evidence is incomplete, say exactly what remains unverified.`,
+	thorough: `Report every Review Finding you can support with code you opened this run, including lower-confidence ones. For each, include your confidence level and an estimated Finding Severity. Do not filter supported findings out yourself; the Skopeo User decides what to act on. Do not report suspicion-only items.`,
 };
 
 /**
