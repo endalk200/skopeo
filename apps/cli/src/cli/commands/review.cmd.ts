@@ -1,10 +1,19 @@
 import { CodeReviewService } from "@skopeo/code-review-agent";
 import { GitService } from "@skopeo/utils";
-import { Effect, Option, Path } from "effect";
+import { Data, Effect, Option, Path } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
+import { codeReviewLayer } from "../../runtime/layers.js";
 
 type ReviewTarget = "working" | "branch";
 type ReviewFormat = "json" | "markdown";
+
+/**
+ * A review flag combination the CLI cannot execute. Tagged so the program's
+ * failure handling prints the message instead of exiting silently.
+ */
+export class InvalidReviewFlags extends Data.TaggedError("InvalidReviewFlags")<{
+	readonly message: string;
+}> {}
 
 type ReviewPlan = {
 	readonly target: ReviewTarget;
@@ -31,16 +40,20 @@ const resolveReviewPlan = ({
 	readonly currentBranchHead: string | null;
 	readonly mainBranch: string | null;
 	readonly repositoryRoot: string;
-}): Effect.Effect<ReviewPlan, Error> =>
+}): Effect.Effect<ReviewPlan, InvalidReviewFlags> =>
 	Effect.gen(function* () {
 		if (target === "working") {
 			if (base !== undefined) {
-				return yield* Effect.fail(new Error("--base cannot be used with --target working"));
+				return yield* Effect.fail(
+					new InvalidReviewFlags({ message: "--base cannot be used with --target working" }),
+				);
 			}
 
 			if (currentBranch === null) {
 				return yield* Effect.fail(
-					new Error("--target working requires a checked-out branch; detached HEAD is not supported"),
+					new InvalidReviewFlags({
+						message: "--target working requires a checked-out branch; detached HEAD is not supported",
+					}),
 				);
 			}
 
@@ -58,7 +71,9 @@ const resolveReviewPlan = ({
 
 		if (resolvedBase === null) {
 			return yield* Effect.fail(
-				new Error("--target branch requires --base because no repository main branch could be detected"),
+				new InvalidReviewFlags({
+					message: "--target branch requires --base because no repository main branch could be detected",
+				}),
 			);
 		}
 
@@ -71,6 +86,8 @@ const resolveReviewPlan = ({
 			target,
 		};
 	});
+
+export { resolveReviewPlan };
 
 export const reviewCommand = Command.make("review", {
 	target: Flag.choice("target", ["working", "branch"] as const).pipe(
@@ -152,6 +169,10 @@ export const reviewCommand = Command.make("review", {
 				},
 			});
 		}).pipe(
+			// Config-dependent services are provided here rather than at the
+			// program root so config-independent commands (config init/path,
+			// version, --help) never require a loadable config.
+			Effect.provide(codeReviewLayer),
 			Effect.annotateLogs({
 				"skopeo.command": "review",
 			}),
