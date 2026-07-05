@@ -210,6 +210,32 @@ describe("skopeo CLI", () => {
 		}),
 	);
 
+	it.effect("still prints semantic Model Provider errors when unrelated env overrides are invalid", () =>
+		Effect.gen(function* () {
+			const { failure, stdout } = yield* runSkopeoCommandExpectingFailure(
+				["config", "validate"],
+				{
+					"/tmp/skopeo-bad-route.toml": `[providers.my-gateway]
+base_url = "https://llm.corp.example/v1"
+protocol = "openai"
+
+[models."claude-opus-4-8"]
+provider = "my-gateway"
+`,
+				},
+				{
+					[CONFIG_PATH_ENV]: "/tmp/skopeo-bad-route.toml",
+					[REVIEW_DEPTH_ENV]: "deep",
+				},
+			);
+			const stdoutText = stdout.join("\n");
+
+			assert.strictEqual((failure as { _tag?: string })._tag, "ConfigValidationFailed");
+			assert.include(stdoutText, `Invalid ${REVIEW_DEPTH_ENV} value "deep"`);
+			assert.include(stdoutText, 'Error: [models.claude-opus-4-8]: Model "claude-opus-4-8" requires');
+		}),
+	);
+
 	it.effect("formats config validation output and failure policy in one place", () =>
 		Effect.sync(() => {
 			const report: ConfigValidationReport = {
@@ -218,6 +244,7 @@ describe("skopeo CLI", () => {
 				env: { _tag: "valid", message: "env ok" },
 				effective: { _tag: "invalid", message: "effective invalid" },
 				config: undefined,
+				modelAccessConfig: undefined,
 			};
 
 			assert.deepStrictEqual(formatConfigValidationReport(report), ["file ok", "env ok", "effective invalid"]);

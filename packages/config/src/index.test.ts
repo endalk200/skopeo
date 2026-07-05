@@ -268,6 +268,40 @@ depth = "thorough"
 		}),
 	);
 
+	it.effect("keeps a file-loaded config available when env overrides are invalid", () =>
+		Effect.gen(function* () {
+			const report = yield* validateSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-file-valid-env-invalid.toml",
+				[REVIEW_DEPTH_ENV]: "deep",
+			});
+
+			assert.strictEqual(report.file._tag, "valid");
+			assert.strictEqual(report.env._tag, "invalid");
+			assert.strictEqual(report.effective._tag, "invalid");
+			assert.strictEqual(report.config, undefined);
+			assert.strictEqual(report.modelAccessConfig?.review.model, "gpt-5.5");
+			assert.deepStrictEqual(report.modelAccessConfig?.models, [
+				{
+					model: "claude-opus-4-8",
+					provider: "my-gateway",
+					modelId: undefined,
+				},
+			]);
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-file-valid-env-invalid.toml": `[providers.my-gateway]
+base_url = "https://llm.corp.example/v1"
+protocol = "openai"
+
+[models."claude-opus-4-8"]
+provider = "my-gateway"
+`,
+				}),
+			),
+		),
+	);
+
 	it.effect("rejects an unknown Review Depth in the config file", () =>
 		Effect.gen(function* () {
 			const report = yield* validateSkopeoConfigFromEnvironment({
