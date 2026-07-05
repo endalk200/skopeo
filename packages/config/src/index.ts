@@ -302,9 +302,15 @@ enabled = false
 # endpoint) and requires base_url. API keys never live in this file — set
 # api_key_env to name the environment variable that holds the key.
 #
+# base_url overrides change the endpoint, not the wire dialect: the
+# well-known "openai" provider always speaks the Responses API
+# (/v1/responses), so its override target must serve it (official mirrors,
+# Azure's v1 API surface). Endpoints that only implement Chat Completions
+# (LiteLLM, ollama, vLLM) belong under a custom provider instead.
+#
 # [providers.openai]
-# base_url = "https://my-azure-openai.example/v1"   # optional endpoint override
-# api_key_env = "MY_OPENAI_KEY"                     # defaults to OPENAI_API_KEY
+# base_url = "https://my-azure-openai.example/openai/v1"  # must serve /responses
+# api_key_env = "MY_OPENAI_KEY"                           # defaults to OPENAI_API_KEY
 #
 # [providers.my-gateway]
 # base_url = "https://llm.corp.example/v1"          # required for custom providers
@@ -372,10 +378,14 @@ export const parseReviewModelEnv = (
 	if (value === undefined) {
 		return Effect.succeed(undefined);
 	}
-	if (value.trim() === "") {
+	// Stray whitespace (quoting mistakes in shell exports) would otherwise
+	// survive into the effective model and fail later with a confusing
+	// unknown-model error, so the trimmed value is what gets stored.
+	const trimmed = value.trim();
+	if (trimmed === "") {
 		return Effect.fail(new InvalidReviewModelEnvironment({ value }));
 	}
-	return Effect.succeed(value);
+	return Effect.succeed(trimmed);
 };
 
 const isReviewDepthSetting = (value: string): value is ReviewDepthSetting =>
@@ -401,13 +411,16 @@ export const validateReviewSelection = (raw: {
 	readonly model: string;
 	readonly depth: string;
 }): Effect.Effect<ReviewSelectionConfig, InvalidReviewDepth | InvalidReviewModel> => {
-	if (raw.model.trim() === "") {
+	// Trimmed for the same reason as parseReviewModelEnv: whitespace typos in
+	// the TOML file must not survive into the effective model.
+	const model = raw.model.trim();
+	if (model === "") {
 		return Effect.fail(new InvalidReviewModel({ value: raw.model }));
 	}
 	if (!isReviewDepthSetting(raw.depth)) {
 		return Effect.fail(new InvalidReviewDepth({ value: raw.depth }));
 	}
-	return Effect.succeed({ model: raw.model, depth: raw.depth });
+	return Effect.succeed({ model, depth: raw.depth });
 };
 
 const isWellKnownModelProvider = (name: string): name is WellKnownModelProviderName =>
@@ -478,13 +491,17 @@ const rejectUnknownFields = (
 	table: Record<string, unknown>,
 	knownFields: ReadonlyArray<string>,
 ): Effect.Effect<void, InvalidProviderConfiguration> => {
-	const unknown = Object.keys(table).find((field) => !knownFields.includes(field));
-	if (unknown === undefined) {
+	// All unknown fields are reported at once so multiple typos surface in a
+	// single validation run instead of one per run.
+	const unknownFields = Object.keys(table).filter((field) => !knownFields.includes(field));
+	if (unknownFields.length === 0) {
 		return Effect.void;
 	}
 	return invalidProviderConfiguration(
 		section,
-		`Unknown field "${unknown}". Expected one of: ${knownFields.join(", ")}.`,
+		`Unknown field${unknownFields.length > 1 ? "s" : ""} ${unknownFields
+			.map((field) => `"${field}"`)
+			.join(", ")}. Expected one of: ${knownFields.join(", ")}.`,
 	);
 };
 

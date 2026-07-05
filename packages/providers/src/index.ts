@@ -219,7 +219,11 @@ const wireDialectFor = (entry: ModelProviderConfig): ModelWireDialect => {
 				return "anthropic";
 			case "openai":
 				// Official OpenAI gets the Responses API — the richest surface
-				// for GPT reasoning options.
+				// for GPT reasoning options. Deliberately unchanged by a
+				// base_url override (ADR 0008): the override target must serve
+				// /v1/responses (official mirrors, Azure's v1 API surface);
+				// Chat-Completions-only endpoints belong under a custom
+				// provider, not an override of this entry.
 				return "openai-responses";
 			case "openrouter":
 				return "openrouter";
@@ -416,15 +420,8 @@ export class ModelProviderService extends Context.Service<
 }
 
 /**
- * Live layer: credentials come from the process environment, read at
- * resolution time so a key set after startup is still honored.
+ * Live layer: credentials come from the process environment. `process.env` is
+ * captured by reference and read at resolution time, so a key set after
+ * startup is still honored.
  */
-export const ModelProviderServiceLive = Layer.effect(
-	ModelProviderService,
-	Effect.gen(function* () {
-		const config = yield* SkopeoConfig;
-		return ModelProviderService.of({
-			adapterFor: (model) => resolveModelAccess(config, process.env, model),
-		});
-	}),
-);
+export const ModelProviderServiceLive = ModelProviderService.layerFromEnvironment(process.env);

@@ -55,7 +55,10 @@ export const validateCommand = Command.make("validate").pipe(
 				"skopeo.config.valid": !hasFailures,
 				"skopeo.config.file_validation_status": report.file._tag,
 				"skopeo.config.env_validation_status": report.env._tag,
-				"skopeo.config.effective_validation_status": report.effective._tag,
+				// The printed report carries the verdict: `effective` is
+				// downgraded to "invalid" when Model Provider checks fail, and
+				// the span attribute must agree with the output and exit code.
+				"skopeo.config.effective_validation_status": printedReport.effective._tag,
 				"skopeo.config.model_access_error_count": accessIssues.filter((issue) => issue.severity === "error")
 					.length,
 				"skopeo.config.model_access_warning_count": accessIssues.filter((issue) => issue.severity === "warning")
