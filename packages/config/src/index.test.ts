@@ -10,8 +10,13 @@ import {
 	loadSkopeoConfigFromEnvironment,
 	OTLP_ENDPOINT_ENV,
 	parseDevToolsEnabledEnv,
+	parseProviderTables,
+	parseReviewDepthEnv,
+	parseReviewModelEnv,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
+	REVIEW_DEPTH_ENV,
+	REVIEW_MODEL_ENV,
 	resolveConfigPath,
 	SkopeoConfig,
 	TELEMETRY_ENV,
@@ -42,6 +47,12 @@ describe("@skopeo/config", () => {
 				devtools: {
 					enabled: false,
 				},
+				review: {
+					model: "gpt-5.5",
+					depth: "standard",
+				},
+				providers: [],
+				models: [],
 			});
 		}).pipe(Effect.provide(fileSystemLayer({}))),
 	);
@@ -194,6 +205,228 @@ otlp_endpoint = "not-a-url"
 
 			assert.strictEqual(config.telemetry.enabled, false);
 		}).pipe(Effect.provide(SkopeoConfig.layerFromEnvironment({})), Effect.provide(fileSystemLayer({}))),
+	);
+
+	it.effect("loads the Default Review Profile selection from the config file", () =>
+		Effect.gen(function* () {
+			const config = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-review-config-test.toml",
+			});
+
+			assert.deepStrictEqual(config.review, {
+				model: "claude-opus-4-8",
+				depth: "thorough",
+			});
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-review-config-test.toml": `[review]
+model = "claude-opus-4-8"
+depth = "thorough"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("prefers SKOPEO_REVIEW_MODEL and SKOPEO_REVIEW_DEPTH over the config file", () =>
+		Effect.gen(function* () {
+			const config = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-review-env-test.toml",
+				[REVIEW_MODEL_ENV]: "gpt-5.4",
+				[REVIEW_DEPTH_ENV]: "quick",
+			});
+
+			assert.deepStrictEqual(config.review, {
+				model: "gpt-5.4",
+				depth: "quick",
+			});
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-review-env-test.toml": `[review]
+model = "claude-opus-4-8"
+depth = "thorough"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("keeps SKOPEO_REVIEW_DEPTH and SKOPEO_REVIEW_MODEL strict", () =>
+		Effect.gen(function* () {
+			assert.strictEqual(yield* parseReviewDepthEnv("thorough"), "thorough");
+			assert.strictEqual(yield* parseReviewDepthEnv(undefined), undefined);
+			assert.strictEqual(yield* parseReviewModelEnv("gpt-5.5"), "gpt-5.5");
+			assert.strictEqual(yield* parseReviewModelEnv(undefined), undefined);
+
+			const invalidDepth = yield* Effect.flip(parseReviewDepthEnv("deep"));
+			assert.strictEqual(invalidDepth._tag, "InvalidReviewDepthEnvironment");
+
+			const invalidModel = yield* Effect.flip(parseReviewModelEnv("   "));
+			assert.strictEqual(invalidModel._tag, "InvalidReviewModelEnvironment");
+		}),
+	);
+
+	it.effect("rejects an unknown Review Depth in the config file", () =>
+		Effect.gen(function* () {
+			const report = yield* validateSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-bad-depth.toml",
+			});
+
+			assert.strictEqual(report.file._tag, "invalid");
+			assert.strictEqual(report.effective._tag, "invalid");
+			assert.include(report.file.message, "Invalid review depth");
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-bad-depth.toml": `[review]
+depth = "deep"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("parses well-known, custom, and routed Model Provider tables", () =>
+		Effect.gen(function* () {
+			const config = yield* loadSkopeoConfigFromEnvironment({
+				[CONFIG_PATH_ENV]: "/tmp/skopeo-providers.toml",
+			});
+
+			assert.deepStrictEqual(config.providers, [
+				{
+					_tag: "wellKnown",
+					name: "openai",
+					baseUrl: "https://azure-openai.example/v1",
+					apiKeyEnv: "MY_OPENAI_KEY",
+				},
+				{
+					_tag: "custom",
+					name: "my-gateway",
+					baseUrl: "https://llm.corp.example/v1",
+					protocol: "anthropic",
+					apiKeyEnv: undefined,
+				},
+			]);
+			assert.deepStrictEqual(config.models, [
+				{
+					model: "claude-opus-4-8",
+					provider: "my-gateway",
+					modelId: "corp-opus-prod",
+				},
+			]);
+		}).pipe(
+			Effect.provide(
+				fileSystemLayer({
+					"/tmp/skopeo-providers.toml": `[providers.openai]
+base_url = "https://azure-openai.example/v1"
+api_key_env = "MY_OPENAI_KEY"
+
+[providers.my-gateway]
+base_url = "https://llm.corp.example/v1"
+protocol = "anthropic"
+
+[models."claude-opus-4-8"]
+provider = "my-gateway"
+model_id = "corp-opus-prod"
+`,
+				}),
+			),
+		),
+	);
+
+	it.effect("rejects plaintext api_key in provider tables", () =>
+		Effect.gen(function* () {
+			const failure = yield* Effect.flip(
+				parseProviderTables({
+					providers: { openai: { api_key: "sk-secret" } },
+				}),
+			);
+
+			assert.strictEqual(failure._tag, "InvalidProviderConfiguration");
+			assert.strictEqual(failure.section, "providers.openai");
+			assert.include(failure.message, "api_key_env");
+		}),
+	);
+
+	it.effect("rejects structural provider table problems", () =>
+		Effect.gen(function* () {
+			const protocolOverride = yield* Effect.flip(
+				parseProviderTables({ providers: { anthropic: { protocol: "openai" } } }),
+			);
+			assert.include(protocolOverride.message, "cannot be overridden");
+
+			const missingBaseUrl = yield* Effect.flip(parseProviderTables({ providers: { "my-gateway": {} } }));
+			assert.include(missingBaseUrl.message, 'requires "base_url"');
+
+			const badProtocol = yield* Effect.flip(
+				parseProviderTables({
+					providers: { "my-gateway": { base_url: "https://x.example", protocol: "grpc" } },
+				}),
+			);
+			assert.include(badProtocol.message, '"protocol" must be one of');
+
+			const badUrl = yield* Effect.flip(
+				parseProviderTables({ providers: { "my-gateway": { base_url: "not-a-url" } } }),
+			);
+			assert.include(badUrl.message, "absolute URL");
+
+			const badScheme = yield* Effect.flip(
+				parseProviderTables({ providers: { "my-gateway": { base_url: "file:///etc/passwd" } } }),
+			);
+			assert.include(badScheme.message, "must use http or https");
+
+			const mailto = yield* Effect.flip(
+				parseProviderTables({ providers: { "my-gateway": { base_url: "mailto:ops@example.com" } } }),
+			);
+			assert.include(mailto.message, "must use http or https");
+
+			const credentialed = yield* Effect.flip(
+				parseProviderTables({
+					providers: { "my-gateway": { base_url: "https://user:secret@llm.corp.example/v1" } },
+				}),
+			);
+			assert.include(credentialed.message, "must not embed credentials");
+			assert.notInclude(credentialed.message, "secret");
+
+			const unknownField = yield* Effect.flip(
+				parseProviderTables({
+					providers: { openai: { api_key_evn: "OOPS" } },
+				}),
+			);
+			assert.include(unknownField.message, 'Unknown field "api_key_evn"');
+		}),
+	);
+
+	it.effect("rejects model routes that reference undeclared providers", () =>
+		Effect.gen(function* () {
+			const failure = yield* Effect.flip(
+				parseProviderTables({
+					models: { "gpt-5.5": { provider: "my-gateway" } },
+				}),
+			);
+
+			assert.strictEqual(failure.section, "models.gpt-5.5");
+			assert.include(failure.message, "not declared under [providers]");
+
+			const missingProvider = yield* Effect.flip(
+				parseProviderTables({
+					models: { "gpt-5.5": {} },
+				}),
+			);
+			assert.include(missingProvider.message, '"provider" is required');
+		}),
+	);
+
+	it.effect("allows model routes to well-known providers without declarations", () =>
+		Effect.gen(function* () {
+			const tables = yield* parseProviderTables({
+				models: { "gpt-5.5": { provider: "openrouter" } },
+			});
+
+			assert.deepStrictEqual(tables.models, [{ model: "gpt-5.5", provider: "openrouter", modelId: undefined }]);
+		}),
 	);
 
 	it.effect("initializes a starter config file without overwriting", () =>
