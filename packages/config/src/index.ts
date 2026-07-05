@@ -213,6 +213,7 @@ export type ConfigValidationReport = {
 	readonly env: ConfigSourceStatus;
 	readonly effective: ConfigSourceStatus;
 	readonly config: SkopeoConfiguration | undefined;
+	readonly modelAccessConfig: SkopeoConfiguration | undefined;
 };
 
 type ConfigSourceProvider = {
@@ -704,6 +705,7 @@ const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 		});
 
 		const effectiveResult = yield* Effect.result(parseEffectiveConfig(sources));
+		const fileResult = yield* Effect.result(parseFileConfig(sources));
 
 		const report = {
 			path: sources.path,
@@ -713,6 +715,11 @@ const validateResolvedConfigSources = (sources: ResolvedConfigSources) =>
 				? validStatus("Valid Skopeo Configuration.")
 				: invalidStatus(formatConfigError(effectiveResult.failure)),
 			config: Result.isSuccess(effectiveResult) ? effectiveResult.success : undefined,
+			modelAccessConfig: Result.isSuccess(effectiveResult)
+				? effectiveResult.success
+				: Result.isSuccess(fileResult)
+					? fileResult.success
+					: undefined,
 		};
 
 		yield* Effect.annotateCurrentSpan({
@@ -947,6 +954,35 @@ const resolveConfigSources = (
 		};
 	});
 
+const parseConfigWithProvider = (
+	provider: ConfigProvider.ConfigProvider,
+	raw: unknown,
+): Effect.Effect<SkopeoConfiguration, ConfigError> =>
+	Effect.gen(function* () {
+		const parsed = yield* skopeoConfigDescriptor.parse(provider);
+		const review = yield* validateReviewSelection(parsed.review);
+		const tables = yield* parseProviderTables(raw);
+
+		return {
+			telemetry: parsed.telemetry,
+			devtools: parsed.devtools,
+			review,
+			providers: tables.providers,
+			models: tables.models,
+		} satisfies SkopeoConfiguration;
+	});
+
+const parseFileConfig = (sources: ResolvedConfigSources): Effect.Effect<SkopeoConfiguration, ConfigError> =>
+	Effect.gen(function* () {
+		const file = yield* Result.match(sources.file, {
+			onFailure: Effect.fail,
+			onSuccess: Effect.succeed,
+		});
+		const provider = ConfigProvider.orElse(file.provider, ConfigProvider.fromUnknown(defaultSkopeoConfiguration));
+
+		return yield* parseConfigWithProvider(provider, file.raw);
+	});
+
 const parseEffectiveConfig = (sources: ResolvedConfigSources): Effect.Effect<SkopeoConfiguration, ConfigError> =>
 	Effect.gen(function* () {
 		const file = yield* Result.match(sources.file, {
@@ -961,18 +997,7 @@ const parseEffectiveConfig = (sources: ResolvedConfigSources): Effect.Effect<Sko
 			env.provider,
 			ConfigProvider.orElse(file.provider, ConfigProvider.fromUnknown(defaultSkopeoConfiguration)),
 		);
-
-		const parsed = yield* skopeoConfigDescriptor.parse(provider);
-		const review = yield* validateReviewSelection(parsed.review);
-		const tables = yield* parseProviderTables(file.raw);
-
-		const config: SkopeoConfiguration = {
-			telemetry: parsed.telemetry,
-			devtools: parsed.devtools,
-			review,
-			providers: tables.providers,
-			models: tables.models,
-		};
+		const config = yield* parseConfigWithProvider(provider, file.raw);
 
 		yield* Effect.annotateCurrentSpan({
 			"skopeo.config.effective_status": "valid",

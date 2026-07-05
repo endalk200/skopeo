@@ -30,9 +30,11 @@ export const validateCommand = Command.make("validate").pipe(
 			});
 
 			const report = yield* validateSkopeoConfig;
-			// Semantic Model Provider checks (registry-dependent routing and
-			// credential facts) only apply when an effective config exists.
-			const accessIssues = report.config === undefined ? [] : analyzeModelAccess(report.config, process.env);
+			// Semantic Model Provider checks use the effective config when it
+			// exists, or the file-loaded config when unrelated env overrides
+			// make the effective config unavailable.
+			const accessIssues =
+				report.modelAccessConfig === undefined ? [] : analyzeModelAccess(report.modelAccessConfig, process.env);
 			const hasFailures = configValidationHasFailures(report) || modelAccessHasFailures(accessIssues);
 
 			// The effective line is the verdict: never print "Valid Skopeo
