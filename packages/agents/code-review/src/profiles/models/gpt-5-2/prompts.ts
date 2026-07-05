@@ -80,9 +80,13 @@ ${contextGatheringByDepth[depth]}
  * Builds the GPT-5.2 user prompt for the given Review Depth.
  */
 const createGpt52UserPrompt = (depth: ReviewDepth, request: CodeReviewRequest) => {
+	// Untracked files are only part of the Review Target for working-tree
+	// reviews; branch reviews stay inside the committed diff.
 	const depthFocus =
 		depth === "quick"
-			? "\n\nThis is a quick pass: stay inside the diff hunks or untracked files listed by `git status --short`; do not expand into unrelated files."
+			? request.target === "working"
+				? "\n\nThis is a quick pass: stay inside the diff hunks or untracked files listed by `git status --short`; do not expand into unrelated files."
+				: "\n\nThis is a quick pass: stay inside the diff hunks; do not expand into unrelated files."
 			: "";
 
 	return `Review command input:

@@ -12,6 +12,7 @@ const configFailure = (error: Parameters<typeof formatConfigError>[0]) => printA
 const modelProviderFailure = (error: ModelProviderError) => printAndFail(error, formatModelProviderError(error));
 
 export const handleCliFailure = {
+	ConfigError: configFailure,
 	ConfigFileAlreadyExists: configFailure,
 	ConfigFileParseError: configFailure,
 	ConfigFileWriteError: configFailure,

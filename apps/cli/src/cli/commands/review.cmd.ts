@@ -159,20 +159,24 @@ export const reviewCommand = Command.make("review", {
 				"git.branch.head": plan.currentBranchHead,
 			});
 
-			const codeReview = yield* CodeReviewService;
-			yield* codeReview.review({
-				...plan,
-				environment: {
-					currentPath: plan.repositoryRoot,
-					dateTime: new Date().toISOString(),
-					os: process.platform,
-				},
-			});
+			// Config-dependent services are provided here — around the review
+			// call only, not the whole handler — for two reasons: config-
+			// independent commands (config init/path, version, --help) never
+			// require a loadable config, and flag validation above must
+			// surface InvalidReviewFlags before a broken config gets the
+			// chance to fail layer construction and mask it.
+			yield* Effect.gen(function* () {
+				const codeReview = yield* CodeReviewService;
+				yield* codeReview.review({
+					...plan,
+					environment: {
+						currentPath: plan.repositoryRoot,
+						dateTime: new Date().toISOString(),
+						os: process.platform,
+					},
+				});
+			}).pipe(Effect.provide(codeReviewLayer));
 		}).pipe(
-			// Config-dependent services are provided here rather than at the
-			// program root so config-independent commands (config init/path,
-			// version, --help) never require a loadable config.
-			Effect.provide(codeReviewLayer),
 			Effect.annotateLogs({
 				"skopeo.command": "review",
 			}),
