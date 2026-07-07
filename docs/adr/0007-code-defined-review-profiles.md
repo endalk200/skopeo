@@ -1,6 +1,6 @@
 # Code-Defined Review Profiles
 
-Status: Accepted (amended by ADR 0008)
+Status: Accepted
 
 A Review Profile bundles everything that shapes Code Review Agent behavior for one (Review Depth, model) pairing: the model, its reasoning configuration, the model-tuned system and user prompts, and the agent-loop budget. Profiles live in code under `packages/agents/code-review/src/profiles/`, one self-contained folder per model, behind a registry keyed by Review Depth and model.
 
@@ -9,5 +9,3 @@ Prompts and tuning are never shared between models — not even between same-gen
 Considered and rejected: grouping profiles by Review Depth with models inside (depth is a parameter into per-model tuning tables, while the vendor call, options shape, and quirks are all model-determined — the model carries the identity); family-shared prompt modules (blocks independent drift and hides which models an edit affects); and a common executor abstraction over the vendor chat calls (vendor differences are the substance of each profile, not noise to hide).
 
 Switching the active Review Profile is a deliberate one-line code edit, not a CLI flag or Skopeo Configuration, even though the shared configuration package (ADR 0003) could carry it. While profiles are being evaluated, a profile change alters review quality and cost and should land as a reviewed commit. Configuration-driven selection is deferred until the profile set stabilizes.
-
-Amended by ADR 0008 in two ways. First, configuration-driven selection is no longer deferred: Skopeo Configuration may identify the Default Review Profile (`[review]` model and depth), validated against the code-defined registry — profiles themselves remain code-defined; config only picks one. Second, profiles no longer construct vendor adapters inside `run()`: the adapter is resolved by the `ModelProviderService` (which knows the configured Model Provider, endpoint, and credentials) and passed in, and each profile model instead declares its required wire protocol. Everything else here stands — prompts, reasoning knobs, depth tuning, and agent-loop budgets stay in per-model profile folders and are never configuration.

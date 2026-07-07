@@ -1,5 +1,5 @@
-import type { ModelWireDialect } from "@skopeo/providers";
 import { chat, maxIterations } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
 import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile, ReviewProfileModule } from "../../types.js";
 import { createGpt55SystemPrompt, createGpt55UserPrompt } from "./prompts.js";
@@ -30,30 +30,9 @@ const tuningByDepth: Record<ReviewDepth, Gpt55Tuning> = {
 	thorough: { maxIterations: 40, reasoningEffort: "high", verbosity: "medium" },
 };
 
-/**
- * Same tuning intent, one shape per wire dialect:
- *
- * - Chat Completions (the dialect gateways speak) takes flat
- *   `reasoning_effort` and top-level `verbosity`.
- * - The Responses API nests them under `reasoning.effort` and
- *   `text.verbosity` (top-level verbosity is rejected there).
- * - OpenRouter normalizes reasoning as `reasoning.effort` and exposes no
- *   verbosity knob; its SDK's outbound schema silently strips unknown keys,
- *   so only fields its chat surface accepts are sent.
- */
-const wireModelOptions = (depth: ReviewDepth, wireDialect: ModelWireDialect): Record<string, unknown> => {
+const modelOptions = (depth: ReviewDepth): Record<string, unknown> => {
 	const tuning = tuningByDepth[depth];
-	switch (wireDialect) {
-		case "openai-chat-completions":
-			return { reasoning_effort: tuning.reasoningEffort, verbosity: tuning.verbosity };
-		case "openrouter":
-			return { reasoning: { effort: tuning.reasoningEffort } };
-		case "openai-responses":
-		case "anthropic":
-			// "anthropic" is unreachable: protocol validation rejects routing
-			// GPT models through Anthropic-protocol providers.
-			return { reasoning: { effort: tuning.reasoningEffort }, text: { verbosity: tuning.verbosity } };
-	}
+	return { reasoning: { effort: tuning.reasoningEffort }, text: { verbosity: tuning.verbosity } };
 };
 
 const makeGpt55Profile = (depth: ReviewDepth, description: string): ReviewProfile => ({
@@ -61,14 +40,13 @@ const makeGpt55Profile = (depth: ReviewDepth, description: string): ReviewProfil
 	description,
 	id: `${depth}:gpt-5.5`,
 	model: "gpt-5.5",
-	// The adapter arrives resolved from the ModelProviderService, so which
-	// Model Provider serves GPT-5.5 (OpenAI, OpenRouter, a gateway) and its
-	// API key are access concerns handled outside the profile.
-	run: ({ adapter, wireDialect, request, tools, middleware }) => {
+	// The adapter is created inside `run` so OPENAI_API_KEY is only required
+	// when a GPT-5.5 profile is the active Review Profile.
+	run: ({ request, tools, middleware }) => {
 		const tuning = tuningByDepth[depth];
 
 		return chat({
-			adapter,
+			adapter: openaiText("gpt-5.5"),
 			agentLoopStrategy: maxIterations(tuning.maxIterations),
 			context: chatContext(request),
 			messages: [
@@ -78,7 +56,7 @@ const makeGpt55Profile = (depth: ReviewDepth, description: string): ReviewProfil
 				},
 			],
 			middleware: [...middleware],
-			modelOptions: wireModelOptions(depth, wireDialect),
+			modelOptions: modelOptions(depth),
 			stream: false,
 			systemPrompts: [createGpt55SystemPrompt(depth, request)],
 			tools: [...tools],
@@ -98,4 +76,4 @@ const { quick, standard, thorough } = {
 	),
 } satisfies ReviewProfileModule;
 
-export { quick, standard, thorough, wireModelOptions };
+export { modelOptions, quick, standard, thorough };

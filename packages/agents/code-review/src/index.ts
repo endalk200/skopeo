@@ -1,5 +1,3 @@
-import { SkopeoConfig } from "@skopeo/config";
-import { ModelProviderService } from "@skopeo/providers";
 import {
 	type AgentToolRuntimeDependencies,
 	type BashAgentTool,
@@ -10,7 +8,7 @@ import {
 } from "@skopeo/tools";
 import type { ChatMiddleware } from "@tanstack/ai";
 import { Console, Context, Effect, Layer } from "effect";
-import { resolveReviewProfile } from "./profiles/index.js";
+import { activeReviewProfile } from "./profiles/index.js";
 import type { CodeReviewEnvironment, CodeReviewFormat, CodeReviewRequest, CodeReviewTarget } from "./request.js";
 
 type CodeReviewAgentToolServices = ReadFileAgentTool | BashAgentTool;
@@ -28,17 +26,12 @@ class CodeReviewService extends Context.Service<
 /**
  * Live Code Review Agent service layer.
  *
- * The implementation resolves the Default Review Profile from Skopeo
- * Configuration, obtains the model's chat adapter from the
- * ModelProviderService, creates repository-scoped Agent Tools for each
- * request, runs the profile, and prints the resulting Review Report.
+ * The implementation creates repository-scoped Agent Tools for each request,
+ * runs the active Review Profile, and prints the resulting Review Report.
  */
 const CodeReviewServiceLive = Layer.effect(
 	CodeReviewService,
 	Effect.gen(function* () {
-		const config = yield* SkopeoConfig;
-		const modelProviders = yield* ModelProviderService;
-
 		return CodeReviewService.of({
 			review: (request) =>
 				Effect.fn("review")(function* () {
@@ -144,39 +137,19 @@ const CodeReviewServiceLive = Layer.effect(
 						},
 					};
 
-					// Resolving model access first surfaces unknown configured models
-					// as a typed UnknownReviewModel error with the known-model list.
-					const access = yield* modelProviders.adapterFor(config.review.model);
-
-					const profile = resolveReviewProfile({ depth: config.review.depth, model: access.model });
-					if (profile === undefined) {
-						// The providers registry accepted the model, so the profile
-						// registry must know it too — a mismatch is a code bug.
-						return yield* Effect.die(
-							new Error(
-								`Model "${access.model}" has provider access defaults but no Review Profile registered.`,
-							),
-						);
-					}
-
 					yield* Effect.logInfo("Running Review Profile").pipe(
 						Effect.annotateLogs({
-							"review_profile.id": profile.id,
-							"review_profile.model": profile.model,
-							"review_profile.depth": profile.depth,
-							"review_profile.provider": access.provider,
-							"review_profile.wire_model_id": access.wireModelId,
-							"review_profile.wire_dialect": access.wireDialect,
+							"review_profile.id": activeReviewProfile.id,
+							"review_profile.model": activeReviewProfile.model,
+							"review_profile.depth": activeReviewProfile.depth,
 						}),
 					);
 
 					const report = yield* Effect.tryPromise(() =>
-						profile.run({
-							adapter: access.adapter,
+						activeReviewProfile.run({
 							middleware: [loggerMiddleware],
 							request,
 							tools: [readFileToolDefinition, bashToolDefinition],
-							wireDialect: access.wireDialect,
 						}),
 					);
 

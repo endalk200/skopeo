@@ -1,6 +1,5 @@
-import type { ModelWireDialect } from "@skopeo/providers";
 import type { makeBashToolDefinition, makeReadFileToolDefinition } from "@skopeo/tools";
-import type { AnyTextAdapter, ChatMiddleware } from "@tanstack/ai";
+import type { ChatMiddleware } from "@tanstack/ai";
 import type { CodeReviewRequest } from "../request.js";
 
 /**
@@ -34,19 +33,8 @@ type ReviewAgentToolDefinitions = readonly [
 
 /**
  * Per-run inputs a Review Profile needs to execute the Code Review Agent loop.
- *
- * `adapter` is the ready chat adapter for the profile's model, resolved by
- * the ModelProviderService from Skopeo Configuration ([models] routing,
- * [providers] entries, credentials). Profiles never construct adapters —
- * which Model Provider serves the model is an access concern, not a tuning
- * concern (ADR 0008). `wireDialect` tells the profile which wire API the
- * adapter speaks so it can shape vendor model options accordingly (e.g. the
- * OpenAI Responses API takes `reasoning: { effort }` while Chat Completions
- * takes `reasoning_effort`).
  */
 type ReviewProfileChatParams = {
-	readonly adapter: AnyTextAdapter;
-	readonly wireDialect: ModelWireDialect;
 	readonly request: CodeReviewRequest;
 	readonly tools: ReviewAgentToolDefinitions;
 	readonly middleware: ReadonlyArray<ChatMiddleware>;
@@ -60,9 +48,8 @@ type ReviewProfileChatParams = {
  * - the model-tuned system and user prompts,
  * - the agent-loop budget.
  *
- * `run` receives the resolved adapter and returns the Review Report text.
- * Provider API keys are resolved by the ModelProviderService only when a
- * profile actually executes.
+ * `run` owns adapter creation so provider API keys are only required when the
+ * profile actually executes, and returns the Review Report text.
  */
 type ReviewProfile = {
 	readonly id: `${ReviewDepth}:${ReviewProfileModel}`;
