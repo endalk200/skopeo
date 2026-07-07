@@ -16,9 +16,9 @@ const telemetryLayerWithConfig = telemetryLayer.pipe(
 	Layer.catch(() => withoutConsoleLogger),
 );
 
-// Config-dependent services (SkopeoConfig, ModelProviderService,
-// CodeReviewService) are provided inside the review command handler — see
-// runtime/layers.ts — so they are only constructed when a command needs them.
+// CodeReviewService is provided inside the review command handler — see
+// runtime/layers.ts — so the root application layer stays focused on
+// cross-command services.
 const applicationLayer = Layer.mergeAll(telemetryLayerWithConfig, GitServiceLive);
 
 const cliLayer = applicationLayer.pipe(Layer.provideMerge(NodeServices.layer));

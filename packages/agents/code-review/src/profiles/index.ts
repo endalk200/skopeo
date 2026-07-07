@@ -50,24 +50,12 @@ const reviewProfiles = {
 } as const satisfies Record<ReviewDepth, Record<ReviewProfileModel, ReviewProfile>>;
 
 /**
- * Narrows a configured model string to a Review Profile model. The set of
- * models is code-defined (ADR 0007); Skopeo Configuration only picks one.
- * `Object.hasOwn` keeps inherited keys like "toString" from passing.
+ * The Review Profile used by the Code Review Agent.
+ *
+ * Switching profiles is a deliberate manual code change: edit this one
+ * assignment, e.g. `reviewProfiles.thorough["claude-opus-4-8"]`.
  */
-const isReviewProfileModel = (value: string): value is ReviewProfileModel =>
-	Object.hasOwn(reviewProfiles.standard, value);
-
-/**
- * Resolves the Default Review Profile from Skopeo Configuration's `[review]`
- * selection. Returns `undefined` when the configured model has no
- * code-defined Review Profile — semantic validation and the run-time
- * ModelProviderService both surface that as an unknown-model error.
- */
-const resolveReviewProfile = (selection: {
-	readonly depth: ReviewDepth;
-	readonly model: string;
-}): ReviewProfile | undefined =>
-	isReviewProfileModel(selection.model) ? reviewProfiles[selection.depth][selection.model] : undefined;
+const activeReviewProfile: ReviewProfile = reviewProfiles.standard["gpt-5.5"];
 
 export type { ReviewDepth, ReviewProfile, ReviewProfileChatParams, ReviewProfileModel };
-export { isReviewProfileModel, resolveReviewProfile, reviewProfiles };
+export { activeReviewProfile, reviewProfiles };

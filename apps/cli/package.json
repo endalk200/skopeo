@@ -49,7 +49,6 @@
 		"@opentelemetry/semantic-conventions": "^1.40.0",
 		"@skopeo/code-review-agent": "workspace:*",
 		"@skopeo/config": "workspace:*",
-		"@skopeo/providers": "workspace:*",
 		"@skopeo/utils": "workspace:*",
 		"@skopeo/typescript-config": "workspace:*",
 		"@types/node": "^26.0.1",

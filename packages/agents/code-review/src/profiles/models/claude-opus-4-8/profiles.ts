@@ -1,5 +1,5 @@
-import type { ModelWireDialect } from "@skopeo/providers";
 import { chat, maxIterations } from "@tanstack/ai";
+import { anthropicText } from "@tanstack/ai-anthropic";
 import { chatContext } from "../../shared/chat-context.js";
 import type { ReviewDepth, ReviewProfile, ReviewProfileModule } from "../../types.js";
 import { createOpus48SystemPrompt, createOpus48UserPrompt } from "./prompts.js";
@@ -29,34 +29,13 @@ const tuningByDepth: Record<ReviewDepth, Opus48Tuning> = {
 	thorough: { effort: "xhigh", maxIterations: 40, maxTokens: 64000 },
 };
 
-/**
- * Same tuning intent, one shape per wire dialect:
- *
- * - Anthropic-protocol providers take native snake_case options
- *   (`max_tokens`, `output_config.effort`, adaptive `thinking`).
- * - OpenRouter's chat surface uses camelCase `maxTokens` and normalizes
- *   reasoning as `reasoning.effort` (its effort enum includes Anthropic's
- *   `xhigh`); Anthropic-native snake_case options would be silently
- *   stripped by its SDK's outbound schema, and `reasoning.effort` is what
- *   enables thinking on Anthropic routes.
- */
-const wireModelOptions = (depth: ReviewDepth, wireDialect: ModelWireDialect): Record<string, unknown> => {
+const modelOptions = (depth: ReviewDepth): Record<string, unknown> => {
 	const tuning = tuningByDepth[depth];
-	switch (wireDialect) {
-		case "openrouter":
-			return { maxTokens: tuning.maxTokens, reasoning: { effort: tuning.effort } };
-		case "anthropic":
-		case "openai-responses":
-		case "openai-chat-completions":
-			// The openai-* dialects are unreachable: protocol validation
-			// rejects routing Opus through OpenAI-protocol providers rather
-			// than silently dropping these options.
-			return {
-				max_tokens: tuning.maxTokens,
-				output_config: { effort: tuning.effort },
-				thinking: { type: "adaptive" },
-			};
-	}
+	return {
+		max_tokens: tuning.maxTokens,
+		output_config: { effort: tuning.effort },
+		thinking: { type: "adaptive" },
+	};
 };
 
 const makeOpus48Profile = (depth: ReviewDepth, description: string): ReviewProfile => ({
@@ -64,14 +43,13 @@ const makeOpus48Profile = (depth: ReviewDepth, description: string): ReviewProfi
 	description,
 	id: `${depth}:claude-opus-4-8`,
 	model: "claude-opus-4-8",
-	// The adapter arrives resolved from the ModelProviderService, so which
-	// Model Provider serves Opus 4.8 and its API key are access concerns
-	// handled outside the profile.
-	run: ({ adapter, wireDialect, request, tools, middleware }) => {
+	// The adapter is created inside `run` so ANTHROPIC_API_KEY is only required
+	// when an Opus 4.8 profile is the active Review Profile.
+	run: ({ request, tools, middleware }) => {
 		const tuning = tuningByDepth[depth];
 
 		return chat({
-			adapter,
+			adapter: anthropicText("claude-opus-4-8"),
 			agentLoopStrategy: maxIterations(tuning.maxIterations),
 			context: chatContext(request),
 			messages: [
@@ -81,7 +59,7 @@ const makeOpus48Profile = (depth: ReviewDepth, description: string): ReviewProfi
 				},
 			],
 			middleware: [...middleware],
-			modelOptions: wireModelOptions(depth, wireDialect),
+			modelOptions: modelOptions(depth),
 			stream: false,
 			systemPrompts: [createOpus48SystemPrompt(depth, request)],
 			tools: [...tools],
@@ -104,4 +82,4 @@ const { quick, standard, thorough } = {
 	),
 } satisfies ReviewProfileModule;
 
-export { quick, standard, thorough, wireModelOptions };
+export { modelOptions, quick, standard, thorough };

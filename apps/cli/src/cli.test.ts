@@ -9,8 +9,6 @@ import {
 	parseDevToolsEnabledEnv,
 	parseTelemetryEnabledEnv,
 	parseTelemetryEndpointEnv,
-	REVIEW_DEPTH_ENV,
-	REVIEW_MODEL_ENV,
 	type SkopeoConfiguration,
 	TELEMETRY_ENV,
 } from "@skopeo/config";
@@ -30,13 +28,6 @@ import {
 
 const require = createRequire(import.meta.url);
 const cliPackage = require("../package.json") as { readonly version: string };
-
-const testConfiguration = (parts: Pick<SkopeoConfiguration, "telemetry" | "devtools">): SkopeoConfiguration => ({
-	...parts,
-	review: { model: "gpt-5.5", depth: "standard" },
-	providers: [],
-	models: [],
-});
 
 const TerminalLayer = Layer.succeed(
 	Terminal.Terminal,
@@ -74,21 +65,7 @@ const cliTestLayer = (files: Record<string, string> = {}) =>
 		withoutConsoleLogger,
 	);
 
-// Every environment variable Skopeo reads: config/review overrides plus the
-// well-known provider key variables consulted by semantic model-access
-// checks. Isolating all of them keeps test output identical regardless of
-// what the developer's shell exports.
-const skopeoEnvKeys = [
-	CONFIG_PATH_ENV,
-	TELEMETRY_ENV,
-	OTLP_ENDPOINT_ENV,
-	DEVTOOLS_ENV,
-	REVIEW_MODEL_ENV,
-	REVIEW_DEPTH_ENV,
-	"OPENAI_API_KEY",
-	"ANTHROPIC_API_KEY",
-	"OPENROUTER_API_KEY",
-] as const;
+const skopeoEnvKeys = [CONFIG_PATH_ENV, TELEMETRY_ENV, OTLP_ENDPOINT_ENV, DEVTOOLS_ENV] as const;
 
 const withIsolatedSkopeoEnvironment =
 	(overrides: Record<string, string> = {}) =>
@@ -128,21 +105,6 @@ const runSkopeoCommand = (
 		yield* runCliWithArgs(args);
 
 		return {
-			stdout: yield* TestConsole.logLines,
-			stderr: yield* TestConsole.errorLines,
-		};
-	}).pipe(withIsolatedSkopeoEnvironment(env), Effect.provide(cliTestLayer(files)));
-
-const runSkopeoCommandExpectingFailure = (
-	args: ReadonlyArray<string>,
-	files: Record<string, string> = {},
-	env: Record<string, string> = {},
-) =>
-	Effect.gen(function* () {
-		const failure = yield* Effect.flip(runCliWithArgs(args));
-
-		return {
-			failure,
 			stdout: yield* TestConsole.logLines,
 			stderr: yield* TestConsole.errorLines,
 		};
@@ -190,52 +152,6 @@ describe("skopeo CLI", () => {
 		}),
 	);
 
-	it.effect("never prints the success verdict when semantic Model Provider checks fail", () =>
-		Effect.gen(function* () {
-			// SKOPEO_REVIEW_MODEL passes structural validation (any non-empty
-			// string) but fails the registry-dependent semantic check.
-			const { failure, stdout } = yield* runSkopeoCommandExpectingFailure(
-				["config", "validate"],
-				{},
-				{
-					[REVIEW_MODEL_ENV]: "gpt-6",
-				},
-			);
-			const stdoutText = stdout.join("\n");
-
-			assert.strictEqual((failure as { _tag?: string })._tag, "ConfigValidationFailed");
-			assert.notInclude(stdoutText, "Valid Skopeo Configuration.");
-			assert.include(stdoutText, "Invalid Skopeo Configuration: Model Provider checks failed.");
-			assert.include(stdoutText, 'Error: [review] model: "gpt-6" is not a code-defined Review Profile model');
-		}),
-	);
-
-	it.effect("still prints semantic Model Provider errors when unrelated env overrides are invalid", () =>
-		Effect.gen(function* () {
-			const { failure, stdout } = yield* runSkopeoCommandExpectingFailure(
-				["config", "validate"],
-				{
-					"/tmp/skopeo-bad-route.toml": `[providers.my-gateway]
-base_url = "https://llm.corp.example/v1"
-protocol = "openai"
-
-[models."claude-opus-4-8"]
-provider = "my-gateway"
-`,
-				},
-				{
-					[CONFIG_PATH_ENV]: "/tmp/skopeo-bad-route.toml",
-					[REVIEW_DEPTH_ENV]: "deep",
-				},
-			);
-			const stdoutText = stdout.join("\n");
-
-			assert.strictEqual((failure as { _tag?: string })._tag, "ConfigValidationFailed");
-			assert.include(stdoutText, `Invalid ${REVIEW_DEPTH_ENV} value "deep"`);
-			assert.include(stdoutText, 'Error: [models.claude-opus-4-8]: Model "claude-opus-4-8" requires');
-		}),
-	);
-
 	it.effect("formats config validation output and failure policy in one place", () =>
 		Effect.sync(() => {
 			const report: ConfigValidationReport = {
@@ -244,7 +160,6 @@ provider = "my-gateway"
 				env: { _tag: "valid", message: "env ok" },
 				effective: { _tag: "invalid", message: "effective invalid" },
 				config: undefined,
-				modelAccessConfig: undefined,
 			};
 
 			assert.deepStrictEqual(formatConfigValidationReport(report), ["file ok", "env ok", "effective invalid"]);
@@ -287,17 +202,15 @@ provider = "my-gateway"
 			assert.strictEqual(loggers.size, 0);
 		}).pipe(
 			Effect.provide(
-				telemetryLayerFromConfiguration(
-					testConfiguration({
-						telemetry: {
-							enabled: false,
-							otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
-						},
-						devtools: {
-							enabled: true,
-						},
-					}),
-				),
+				telemetryLayerFromConfiguration({
+					telemetry: {
+						enabled: false,
+						otlpEndpoint: DEFAULT_OTLP_HTTP_ENDPOINT,
+					},
+					devtools: {
+						enabled: true,
+					},
+				} satisfies SkopeoConfiguration),
 			),
 		),
 	);
@@ -317,17 +230,15 @@ provider = "my-gateway"
 				]);
 			}).pipe(
 				Effect.provide(
-					telemetryLayerFromConfiguration(
-						testConfiguration({
-							telemetry: {
-								enabled: true,
-								otlpEndpoint: "http://127.0.0.1:65535",
-							},
-							devtools: {
-								enabled: false,
-							},
-						}),
-					),
+					telemetryLayerFromConfiguration({
+						telemetry: {
+							enabled: true,
+							otlpEndpoint: "http://127.0.0.1:65535",
+						},
+						devtools: {
+							enabled: false,
+						},
+					} satisfies SkopeoConfiguration),
 				),
 				Effect.ensuring(
 					Effect.sync(() => {
@@ -351,17 +262,15 @@ provider = "my-gateway"
 				assert.deepStrictEqual(stderr, []);
 			}).pipe(
 				Effect.provide(
-					telemetryLayerFromConfiguration(
-						testConfiguration({
-							telemetry: {
-								enabled: true,
-								otlpEndpoint: "http://127.0.0.1:27686",
-							},
-							devtools: {
-								enabled: false,
-							},
-						}),
-					),
+					telemetryLayerFromConfiguration({
+						telemetry: {
+							enabled: true,
+							otlpEndpoint: "http://127.0.0.1:27686",
+						},
+						devtools: {
+							enabled: false,
+						},
+					} satisfies SkopeoConfiguration),
 				),
 				Effect.ensuring(
 					Effect.sync(() => {
