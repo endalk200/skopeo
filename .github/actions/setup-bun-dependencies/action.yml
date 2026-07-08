@@ -30,15 +30,19 @@ runs:
       with:
         bun-version: ${{ steps.bun.outputs.version }}
 
-    - name: Restore Bun dependency cache
+    - name: Restore Bun package cache
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          ~/.bun/install/cache
-          node_modules
+        path: ~/.bun/install/cache
         key: ${{ runner.os }}-bun-${{ steps.bun.outputs.version }}-${{ hashFiles('bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-${{ steps.bun.outputs.version }}-
+
+    - name: Restore installed dependencies
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-modules-${{ steps.bun.outputs.version }}-${{ hashFiles('bun.lock') }}
 
     - name: Install dependencies
       shell: bash
