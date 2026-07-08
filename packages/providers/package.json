@@ -22,17 +22,17 @@
 	},
 	"dependencies": {
 		"@skopeo/config": "workspace:*",
-		"@tanstack/ai": "^0.39.1",
-		"@tanstack/ai-anthropic": "^0.16.0",
-		"@tanstack/ai-openai": "^0.15.10",
-		"@tanstack/ai-openrouter": "^0.15.7",
-		"effect": "4.0.0-beta.92"
+		"@tanstack/ai": "^0.40.0",
+		"@tanstack/ai-anthropic": "^0.16.1",
+		"@tanstack/ai-openai": "^0.16.0",
+		"@tanstack/ai-openrouter": "^0.15.8",
+		"effect": "4.0.0-beta.94"
 	},
 	"devDependencies": {
-		"@effect/vitest": "4.0.0-beta.92",
+		"@effect/vitest": "4.0.0-beta.94",
 		"@skopeo/typescript-config": "workspace:*",
-		"@types/node": "^26.0.1",
+		"@types/node": "^26.1.1",
 		"typescript": "6.0.3",
-		"vitest": "^4.1.9"
+		"vitest": "^4.1.10"
 	}
 }
