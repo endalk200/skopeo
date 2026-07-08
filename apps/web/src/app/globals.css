@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 theme configuration for the Skopeo web app.
+ * Font family variables (--font-sans / --font-mono / --font-display)
+ * are provided by next/font in app/layout.tsx.
+ *
+ * The site now ships a single visual language — Carbon — so the theme
+ * is intentionally lean: amber phosphor on near-black dotted paper.
+ */
+@theme {
+	--font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+	--font-mono: var(--font-jetbrains), ui-monospace, "SF Mono", monospace;
+	--font-display: var(--font-space), var(--font-inter), sans-serif;
+
+	--color-ink: #0a0a0c;
+
+	--animate-blink: blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+@layer base {
+	html {
+		scroll-behavior: smooth;
+		-webkit-text-size-adjust: 100%;
+	}
+
+	body {
+		font-family: var(--font-sans);
+		text-rendering: optimizeLegibility;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	::selection {
+		background-color: color-mix(in oklab, #fbbf24 35%, transparent);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.001ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.001ms !important;
+			scroll-behavior: auto !important;
+		}
+	}
+}
+
+/* Utility: dotted graph-paper backdrop — the Carbon medium. */
+@utility bg-dot-grid {
+	background-image: radial-gradient(
+		color-mix(in oklab, currentColor 22%, transparent) 1px,
+		transparent 1.4px
+	);
+	background-size: 22px 22px;
+}

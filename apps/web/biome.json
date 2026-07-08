@@ -1,0 +1,15 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+	"extends": ["@skopeo/biome-config/base"],
+	"linter": {
+		"includes": ["**", "!dist/**", "!.next/**"]
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"files": {
+		"includes": ["**", "!.next/**", "!next-env.d.ts"]
+	}
+}
