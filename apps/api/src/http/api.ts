@@ -40,39 +40,42 @@ export const UpdateProjectRequest = Schema.Struct({
 });
 
 const ProjectParams = {
-	projectId: Schema.String,
+	projectId: Schema.String.pipe(Schema.check(Schema.isUUID())),
 };
 
-const ProjectErrors = [InvalidProjectInput, ProjectConflict, ProjectNotFound, ProjectPersistenceError] as const;
+const PersistenceErrors = [ProjectPersistenceError] as const;
+const CreateProjectErrors = [InvalidProjectInput, ProjectConflict, ProjectPersistenceError] as const;
+const LookupProjectErrors = [ProjectNotFound, ProjectPersistenceError] as const;
+const UpdateProjectErrors = [InvalidProjectInput, ProjectConflict, ProjectNotFound, ProjectPersistenceError] as const;
 
 const listProjects = HttpApiEndpoint.get("listProjects", "/projects", {
 	success: Schema.Array(ProjectResponse),
-	error: ProjectErrors,
+	error: PersistenceErrors,
 }).annotate(OpenApi.Summary, "List projects");
 
 const createProject = HttpApiEndpoint.post("createProject", "/projects", {
 	payload: CreateProjectRequest,
 	success: HttpApiSchema.status(201)(ProjectResponse),
-	error: ProjectErrors,
+	error: CreateProjectErrors,
 }).annotate(OpenApi.Summary, "Create project");
 
 const getProject = HttpApiEndpoint.get("getProject", "/projects/:projectId", {
 	params: ProjectParams,
 	success: ProjectResponse,
-	error: ProjectErrors,
+	error: LookupProjectErrors,
 }).annotate(OpenApi.Summary, "Get project");
 
 const updateProject = HttpApiEndpoint.patch("updateProject", "/projects/:projectId", {
 	params: ProjectParams,
 	payload: UpdateProjectRequest,
 	success: ProjectResponse,
-	error: ProjectErrors,
+	error: UpdateProjectErrors,
 }).annotate(OpenApi.Summary, "Update project");
 
 const deleteProject = HttpApiEndpoint.make("DELETE")("deleteProject", "/projects/:projectId", {
 	params: ProjectParams,
 	success: HttpApiSchema.NoContent,
-	error: ProjectErrors,
+	error: LookupProjectErrors,
 }).annotate(OpenApi.Summary, "Delete project");
 
 export const ProjectsApiGroup = HttpApiGroup.make("projects")

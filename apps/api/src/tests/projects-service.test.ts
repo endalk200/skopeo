@@ -42,7 +42,7 @@ const InMemoryProjectsRepositoryLive = Layer.sync(ProjectsRepository)(() => {
 		get: (projectId) =>
 			Effect.sync(() => projects.get(projectId) ?? null).pipe(
 				Effect.flatMap((project) =>
-					project === null
+					project === null || project.deletedAt !== null
 						? Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }))
 						: Effect.succeed(project),
 				),
@@ -51,7 +51,7 @@ const InMemoryProjectsRepositoryLive = Layer.sync(ProjectsRepository)(() => {
 		softDelete: (projectId) =>
 			Effect.sync(() => projects.get(projectId) ?? null).pipe(
 				Effect.flatMap((project) => {
-					if (project === null) {
+					if (project === null || project.deletedAt !== null) {
 						return Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }));
 					}
 
@@ -62,7 +62,7 @@ const InMemoryProjectsRepositoryLive = Layer.sync(ProjectsRepository)(() => {
 		update: (projectId: string, changes: ValidatedUpdateProject) =>
 			Effect.sync(() => projects.get(projectId) ?? null).pipe(
 				Effect.flatMap((project) => {
-					if (project === null) {
+					if (project === null || project.deletedAt !== null) {
 						return Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }));
 					}
 
@@ -83,6 +83,12 @@ const InMemoryProjectsRepositoryLive = Layer.sync(ProjectsRepository)(() => {
 const TestLayer = ProjectsServiceLive.pipe(Layer.provide(InMemoryProjectsRepositoryLive));
 
 describe("ProjectsService", () => {
+	const skopeoProject = {
+		name: "Skopeo",
+		sourceControlProvider: "github" as const,
+		sourceControlUrl: "https://github.com/endalk200/skopeo",
+	};
+
 	it.effect("creates a normalized project", () =>
 		Effect.gen(function* () {
 			const service = yield* ProjectsService;
@@ -113,19 +119,142 @@ describe("ProjectsService", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.effect("rejects non-https source control URLs", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const error = yield* Effect.flip(
+				service.create({
+					...skopeoProject,
+					sourceControlUrl: "http://github.com/endalk200/skopeo",
+				}),
+			);
+
+			assert.instanceOf(error, InvalidProjectInput);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.effect("rejects duplicate active source control URLs", () =>
 		Effect.gen(function* () {
 			const service = yield* ProjectsService;
-			const command = {
-				name: "Skopeo",
-				sourceControlProvider: "github" as const,
-				sourceControlUrl: "https://github.com/endalk200/skopeo",
-			};
 
-			yield* service.create(command);
-			const error = yield* Effect.flip(service.create(command));
+			yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(service.create(skopeoProject));
 
 			assert.instanceOf(error, ProjectConflict);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("gets a project by id", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+			const project = yield* service.get(created.id);
+
+			assert.strictEqual(project.id, created.id);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects getting a missing project", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const error = yield* Effect.flip(service.get("missing-project"));
+
+			assert.instanceOf(error, ProjectNotFound);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("lists active projects", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const empty = yield* service.list();
+			assert.deepStrictEqual(empty, []);
+
+			const created = yield* service.create(skopeoProject);
+			const projects = yield* service.list();
+
+			assert.deepStrictEqual(
+				projects.map((project) => project.id),
+				[created.id],
+			);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("updates a project", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+			const updated = yield* service.update(created.id, { name: "Skopeo Platform" });
+
+			assert.strictEqual(updated.id, created.id);
+			assert.strictEqual(updated.name, "Skopeo Platform");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects update conflicts on duplicate source control URLs", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const first = yield* service.create(skopeoProject);
+			const second = yield* service.create({
+				name: "Other",
+				sourceControlProvider: "github",
+				sourceControlUrl: "https://github.com/endalk200/other",
+			});
+
+			const error = yield* Effect.flip(
+				service.update(first.id, {
+					sourceControlProvider: second.sourceControlProvider,
+					sourceControlUrl: second.sourceControlUrl,
+				}),
+			);
+
+			assert.instanceOf(error, ProjectConflict);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("returns not found before checking update source control URL conflicts", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const existing = yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(
+				service.update("missing-project", {
+					sourceControlProvider: existing.sourceControlProvider,
+					sourceControlUrl: existing.sourceControlUrl,
+				}),
+			);
+
+			assert.instanceOf(error, ProjectNotFound);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects updating a missing project", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const error = yield* Effect.flip(service.update("missing-project", { name: "Missing" }));
+
+			assert.instanceOf(error, ProjectNotFound);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("soft-deletes a project", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+
+			yield* service.softDelete(created.id);
+			const projects = yield* service.list();
+			const getError = yield* Effect.flip(service.get(created.id));
+
+			assert.deepStrictEqual(projects, []);
+			assert.instanceOf(getError, ProjectNotFound);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects soft-deleting a missing project", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const error = yield* Effect.flip(service.softDelete("missing-project"));
+
+			assert.instanceOf(error, ProjectNotFound);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 });
