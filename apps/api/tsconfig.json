@@ -1,0 +1,7 @@
+{
+	"extends": "@skopeo/typescript-config/base.json",
+	"compilerOptions": {
+		"noEmit": true
+	},
+	"include": ["drizzle.config.ts", "src"]
+}
