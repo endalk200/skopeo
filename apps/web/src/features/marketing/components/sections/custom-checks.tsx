@@ -7,7 +7,7 @@ import { customCheckPoints, skopeoTree } from "../../content";
 
 export function CustomChecks() {
 	return (
-		<section id="checks" className="mx-auto max-w-6xl px-6 py-24">
+		<section id="checks" className="mx-auto max-w-6xl scroll-mt-24 px-6 py-24">
 			<SectionLabel n="// 01 — hackable" title="Custom checks, in your repo" />
 			<div className="grid gap-8 lg:grid-cols-2 lg:items-center">
 				<div className="space-y-5">
