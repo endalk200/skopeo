@@ -146,15 +146,7 @@ export const validateUpdateProject = (
 		const provider = command.sourceControlProvider;
 		const name = hasName ? yield* validateProjectName(command.name) : undefined;
 
-		if (hasUrl) {
-			if (provider === undefined) {
-				return yield* Effect.fail(
-					new InvalidProjectInput({
-						message: "sourceControlProvider and sourceControlUrl must be updated together.",
-					}),
-				);
-			}
-
+		if (hasUrl && provider !== undefined) {
 			return {
 				name,
 				sourceControlProvider: provider,
