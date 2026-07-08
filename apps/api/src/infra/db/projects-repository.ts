@@ -1,10 +1,14 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { Effect, Layer } from "effect";
-import { ProjectNotFound, ProjectPersistenceError } from "../../domain/projects/errors.js";
+import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core";
+import { Cause, Effect, Layer } from "effect";
+import * as SqlError from "effect/unstable/sql/SqlError";
+import { ProjectConflict, ProjectNotFound, ProjectPersistenceError } from "../../domain/projects/errors.js";
 import type { Project, ValidatedCreateProject, ValidatedUpdateProject } from "../../domain/projects/project.js";
 import { ProjectsRepository } from "../../domain/projects/repository.js";
 import { Database } from "./database.js";
 import { projects } from "./schema.js";
+
+const activeSourceControlUrlUniqueIndex = "projects_active_source_control_url_unique";
 
 type ProjectRow = typeof projects.$inferSelect;
 
@@ -24,8 +28,59 @@ const toProject = (row: ProjectRow): Project => ({
 
 const persistenceError = (message: string) => new ProjectPersistenceError({ message });
 
-const mapPersistence = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, ProjectPersistenceError, R> =>
-	effect.pipe(Effect.mapError(() => persistenceError("Project persistence operation failed.")));
+const sourceControlUrlConflict = () =>
+	new ProjectConflict({
+		message: "A project with this source control URL already exists.",
+	});
+
+const extractSqlError = (cause: unknown): SqlError.SqlError | null => {
+	if (SqlError.isSqlError(cause)) {
+		return cause;
+	}
+
+	if (!Cause.isCause(cause)) {
+		return null;
+	}
+
+	const squashed = Cause.squash(cause);
+	return SqlError.isSqlError(squashed) ? squashed : null;
+};
+
+export const mapProjectPersistenceError = (
+	error: EffectDrizzleQueryError,
+): ProjectConflict | ProjectPersistenceError => {
+	const sqlError = extractSqlError(error.cause);
+	const reason = sqlError?.reason;
+
+	if (reason?._tag === "UniqueViolation" && reason.constraint === activeSourceControlUrlUniqueIndex) {
+		return sourceControlUrlConflict();
+	}
+
+	return persistenceError("Project persistence operation failed.");
+};
+
+const isExpectedMutationPersistenceError = (error: EffectDrizzleQueryError) =>
+	mapProjectPersistenceError(error) instanceof ProjectConflict;
+
+const mapPersistence = <A, R>(
+	effect: Effect.Effect<A, EffectDrizzleQueryError, R>,
+): Effect.Effect<A, ProjectPersistenceError, R> =>
+	effect.pipe(
+		Effect.tapError((error) => Effect.logError("Project persistence query failed", error)),
+		Effect.mapError(() => persistenceError("Project persistence operation failed.")),
+	);
+
+const mapMutationPersistence = <A, R>(
+	effect: Effect.Effect<A, EffectDrizzleQueryError, R>,
+): Effect.Effect<A, ProjectConflict | ProjectPersistenceError, R> =>
+	effect.pipe(
+		Effect.tapError((error) =>
+			isExpectedMutationPersistenceError(error)
+				? Effect.void
+				: Effect.logError("Project persistence query failed", error),
+		),
+		Effect.mapError(mapProjectPersistenceError),
+	);
 
 const notFound = (projectId: string) =>
 	new ProjectNotFound({
@@ -39,7 +94,7 @@ export const DrizzleProjectsRepositoryLive = Layer.effect(
 		ProjectsRepository.of({
 			create: (project: ValidatedCreateProject) =>
 				Effect.gen(function* () {
-					const rows = yield* mapPersistence(
+					const rows = yield* mapMutationPersistence(
 						database
 							.insert(projects)
 							.values({
@@ -134,7 +189,7 @@ export const DrizzleProjectsRepositoryLive = Layer.effect(
 						changes.sourceControlUrl = project.sourceControlUrl;
 					}
 
-					const rows = yield* mapPersistence(
+					const rows = yield* mapMutationPersistence(
 						database
 							.update(projects)
 							.set(changes)
