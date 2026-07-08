@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { ReactNode, SVGProps } from "react";
 
 /**
  * Lightweight inline icon set (stroke-based, currentColor). Avoids an
@@ -20,7 +20,7 @@ export type IconName =
 	| "eye"
 	| "layers";
 
-const paths: Record<IconName, React.ReactNode> = {
+const paths: Record<IconName, ReactNode> = {
 	terminal: (
 		<>
 			<path d="m4 17 6-5-6-5" />

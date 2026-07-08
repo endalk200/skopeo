@@ -3,7 +3,10 @@ import { providers } from "../../content";
 
 export function Providers() {
 	return (
-		<section id="providers" className="mx-auto max-w-6xl px-6 py-24">
+		<section
+			id="providers"
+			className="mx-auto max-w-6xl scroll-mt-24 px-6 py-24"
+		>
 			<SectionLabel n="// 04 — inputs" title="Bring your own provider" />
 			<div className="grid gap-px bg-amber-400/15 sm:grid-cols-2 lg:grid-cols-3">
 				{providers.map((p) => (

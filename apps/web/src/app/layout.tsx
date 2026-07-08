@@ -49,11 +49,13 @@ export const metadata: Metadata = {
 		title: `${site.name} — ${site.tagline}`,
 		description: site.description,
 		siteName: site.name,
+		images: [{ url: site.ogImage }],
 	},
 	twitter: {
 		card: "summary_large_image",
 		title: `${site.name} — ${site.tagline}`,
 		description: site.description,
+		images: [site.ogImage],
 	},
 	robots: { index: true, follow: true },
 	alternates: { canonical: "/" },
@@ -75,7 +77,6 @@ export default function RootLayout({
 		<html
 			lang="en"
 			className={`${inter.variable} ${jetbrains.variable} ${space.variable}`}
-			suppressHydrationWarning
 		>
 			<body className="antialiased">{children}</body>
 		</html>
