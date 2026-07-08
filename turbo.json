@@ -1,6 +1,13 @@
 {
 	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
-	"globalDependencies": ["scripts/**"],
+	"globalDependencies": [
+		"scripts/**",
+		"biome.json",
+		"apps/*/biome.json",
+		"apps/*/turbo.json",
+		"packages/biome-config/**",
+		"packages/typescript-config/**"
+	],
 	"ui": "stream",
 	"tasks": {
 		"build": {

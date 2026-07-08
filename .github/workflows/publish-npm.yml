@@ -38,14 +38,17 @@ jobs:
       - name: Set up npm
         run: npm install -g npm@11.15.0
 
-      - name: Set up Bun
-        # oven-sh/setup-bun@v2
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
-        with:
-          bun-version: 1.3.6
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Restore Turbo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-release-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-release-
+            ${{ runner.os }}-turbo-
 
       - name: Audit release dependencies
         run: bun run release:audit
