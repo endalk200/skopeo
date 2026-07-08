@@ -84,8 +84,8 @@ const validateSourceControlUrl = (
 	Effect.try({
 		try: () => {
 			const parsed = new URL(url);
-			if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-				throw new Error("Source control URL must use http or https.");
+			if (parsed.protocol !== "https:") {
+				throw new Error("Source control URL must use https.");
 			}
 
 			const provider = providerForHost(parsed.hostname);

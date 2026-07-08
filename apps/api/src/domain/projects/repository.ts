@@ -7,7 +7,9 @@ export type ProjectRepositoryError = ProjectConflict | ProjectNotFound | Project
 export class ProjectsRepository extends Context.Service<
 	ProjectsRepository,
 	{
-		readonly create: (project: ValidatedCreateProject) => Effect.Effect<Project, ProjectRepositoryError>;
+		readonly create: (
+			project: ValidatedCreateProject,
+		) => Effect.Effect<Project, ProjectConflict | ProjectPersistenceError>;
 		readonly findActiveBySourceControlUrl: (
 			sourceControlUrl: string,
 		) => Effect.Effect<Project | null, ProjectPersistenceError>;
