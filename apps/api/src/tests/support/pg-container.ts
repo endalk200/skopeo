@@ -12,7 +12,7 @@ export class PgContainer extends Context.Service<PgContainer, StartedPostgreSqlC
 const PgContainerLive = Layer.effect(
 	PgContainer,
 	Effect.acquireRelease(
-		Effect.promise(() => new PostgreSqlContainer("postgres:17-alpine").start()),
+		Effect.promise(() => new PostgreSqlContainer("postgres:17.6").start()),
 		(container) => Effect.promise(() => container.stop()),
 	),
 );
