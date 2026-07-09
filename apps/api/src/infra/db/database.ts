@@ -1,7 +1,7 @@
 import { PgClient } from "@effect/sql-pg";
 import type { EffectPgDatabase } from "drizzle-orm/effect-postgres";
 import * as Drizzle from "drizzle-orm/effect-postgres";
-import { Context, Effect, Layer, Redacted } from "effect";
+import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import { Pool } from "pg";
 import { AppConfig } from "../../config/app-config.js";
 
@@ -43,3 +43,34 @@ export const DatabaseLayer = Layer.effect(
 );
 
 export const DatabaseLive = DatabaseLayer.pipe(Layer.provide(PgClientLive));
+
+export class DatabaseUnavailable extends Schema.TaggedErrorClass<DatabaseUnavailable>()("DatabaseUnavailable", {
+	message: Schema.String,
+}) {}
+
+/**
+ * Small port for readiness probing, so HTTP health routes do not depend on
+ * the full drizzle database surface and tests can fake it with one function.
+ */
+export class DatabaseHealth extends Context.Service<
+	DatabaseHealth,
+	{
+		readonly ping: Effect.Effect<void, DatabaseUnavailable>;
+	}
+>()("skopeo/api/DatabaseHealth") {}
+
+export const DatabaseHealthLive = Layer.effect(
+	DatabaseHealth,
+	Effect.map(Database, (database) =>
+		DatabaseHealth.of({
+			ping: database.execute("select 1").pipe(
+				Effect.asVoid,
+				Effect.mapError((cause) => {
+					const error = new DatabaseUnavailable({ message: "Database is unreachable." });
+					error.cause = cause;
+					return error;
+				}),
+			),
+		}),
+	),
+);
