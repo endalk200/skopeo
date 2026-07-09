@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import type { EffectDrizzleQueryError } from "drizzle-orm/effect-core";
-import { Cause, Effect, Layer } from "effect";
+import { Cause, DateTime, Effect, Layer } from "effect";
 import * as SqlError from "effect/unstable/sql/SqlError";
 import { ProjectConflict, ProjectNotFound, ProjectPersistenceError } from "../../domain/projects/errors.js";
 import type { Project, ValidatedCreateProject, ValidatedUpdateProject } from "../../domain/projects/project.js";
@@ -21,12 +21,23 @@ const toProject = (row: ProjectRow): Project => ({
 	name: row.name,
 	sourceControlProvider: row.sourceControlProvider,
 	sourceControlUrl: row.sourceControlUrl,
-	createdAt: row.createdAt.toISOString(),
-	updatedAt: row.updatedAt.toISOString(),
-	deletedAt: row.deletedAt?.toISOString() ?? null,
+	createdAt: DateTime.fromDateUnsafe(row.createdAt),
+	updatedAt: DateTime.fromDateUnsafe(row.updatedAt),
+	deletedAt: row.deletedAt === null ? null : DateTime.fromDateUnsafe(row.deletedAt),
 });
 
-const persistenceError = (message: string) => new ProjectPersistenceError({ message });
+/**
+ * The underlying query error is attached as the native `Error.cause` so spans
+ * and logs can see it, without it being part of the schema-encoded (and
+ * therefore HTTP-serialized) payload.
+ */
+const persistenceError = (message: string, cause?: unknown): ProjectPersistenceError => {
+	const error = new ProjectPersistenceError({ message });
+	if (cause !== undefined) {
+		error.cause = cause;
+	}
+	return error;
+};
 
 const sourceControlUrlConflict = () =>
 	new ProjectConflict({
@@ -56,30 +67,28 @@ export const mapProjectPersistenceError = (
 		return sourceControlUrlConflict();
 	}
 
-	return persistenceError("Project persistence operation failed.");
+	return persistenceError("Project persistence operation failed.", error);
 };
 
-const isExpectedMutationPersistenceError = (error: EffectDrizzleQueryError) =>
-	mapProjectPersistenceError(error) instanceof ProjectConflict;
+const failLogged = <E>(error: EffectDrizzleQueryError, mapped: E) =>
+	Effect.logError("Project persistence query failed", error).pipe(Effect.flatMap(() => Effect.fail(mapped)));
 
 const mapPersistence = <A, R>(
 	effect: Effect.Effect<A, EffectDrizzleQueryError, R>,
 ): Effect.Effect<A, ProjectPersistenceError, R> =>
 	effect.pipe(
-		Effect.tapError((error) => Effect.logError("Project persistence query failed", error)),
-		Effect.mapError(() => persistenceError("Project persistence operation failed.")),
+		Effect.catch((error) => failLogged(error, persistenceError("Project persistence operation failed.", error))),
 	);
 
 const mapMutationPersistence = <A, R>(
 	effect: Effect.Effect<A, EffectDrizzleQueryError, R>,
 ): Effect.Effect<A, ProjectConflict | ProjectPersistenceError, R> =>
 	effect.pipe(
-		Effect.tapError((error) =>
-			isExpectedMutationPersistenceError(error)
-				? Effect.void
-				: Effect.logError("Project persistence query failed", error),
-		),
-		Effect.mapError(mapProjectPersistenceError),
+		Effect.catch((error): Effect.Effect<never, ProjectConflict | ProjectPersistenceError> => {
+			const mapped = mapProjectPersistenceError(error);
+			// Conflicts are expected business outcomes; only log unexpected failures.
+			return mapped instanceof ProjectConflict ? Effect.fail(mapped) : failLogged(error, mapped);
+		}),
 	);
 
 const notFound = (projectId: string) =>
@@ -159,7 +168,7 @@ export const DrizzleProjectsRepositoryLive = Layer.effect(
 
 			softDelete: (projectId: string) =>
 				Effect.gen(function* () {
-					const now = new Date();
+					const now = DateTime.toDateUtc(yield* DateTime.now);
 					const rows = yield* mapPersistence(
 						database
 							.update(projects)
@@ -176,7 +185,7 @@ export const DrizzleProjectsRepositoryLive = Layer.effect(
 			update: (projectId: string, project: ValidatedUpdateProject) =>
 				Effect.gen(function* () {
 					const changes: ProjectUpdate = {
-						updatedAt: new Date(),
+						updatedAt: DateTime.toDateUtc(yield* DateTime.now),
 					};
 
 					if (project.name !== undefined) {
