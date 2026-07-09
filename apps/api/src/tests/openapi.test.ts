@@ -11,6 +11,9 @@ describe("SkopeoApi OpenAPI", () => {
 		assert.property(spec.paths, "/api/projects/{projectId}");
 		assert.property(spec.components?.schemas, "Project");
 		assert.property(spec.components?.schemas, "CreateProjectRequest");
+		assert.property(spec.components?.schemas, "RequestBodyTooLarge");
 		assert.property(spec.components?.schemas, "UpdateProjectRequest");
+		assert.property(spec.paths["/api/projects"]?.post?.responses ?? {}, "413");
+		assert.property(spec.paths["/api/projects/{projectId}"]?.patch?.responses ?? {}, "413");
 	});
 });

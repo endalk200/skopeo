@@ -1,84 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { InvalidProjectInput, ProjectConflict, ProjectNotFound } from "../domain/projects/errors.js";
-import type { Project, ValidatedCreateProject, ValidatedUpdateProject } from "../domain/projects/project.js";
-import { ProjectsRepository } from "../domain/projects/repository.js";
 import { ProjectsService, ProjectsServiceLive } from "../domain/projects/service.js";
-
-const now = "2026-07-08T00:00:00.000Z";
-
-const makeProject = (id: string, project: ValidatedCreateProject): Project => ({
-	id,
-	name: project.name,
-	sourceControlProvider: project.sourceControlProvider,
-	sourceControlUrl: project.sourceControlUrl,
-	createdAt: now,
-	updatedAt: now,
-	deletedAt: null,
-});
-
-const InMemoryProjectsRepositoryLive = Layer.sync(ProjectsRepository)(() => {
-	const projects = new Map<string, Project>();
-	let nextId = 1;
-
-	return ProjectsRepository.of({
-		create: (project) =>
-			Effect.sync(() => {
-				const created = makeProject(`project-${nextId}`, project);
-				nextId += 1;
-				projects.set(created.id, created);
-				return created;
-			}),
-		findActiveBySourceControlUrl: (sourceControlUrl) =>
-			Effect.sync(() => {
-				for (const project of projects.values()) {
-					if (project.sourceControlUrl === sourceControlUrl && project.deletedAt === null) {
-						return project;
-					}
-				}
-
-				return null;
-			}),
-		get: (projectId) =>
-			Effect.sync(() => projects.get(projectId) ?? null).pipe(
-				Effect.flatMap((project) =>
-					project === null || project.deletedAt !== null
-						? Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }))
-						: Effect.succeed(project),
-				),
-			),
-		list: () => Effect.sync(() => Array.from(projects.values()).filter((project) => project.deletedAt === null)),
-		softDelete: (projectId) =>
-			Effect.sync(() => projects.get(projectId) ?? null).pipe(
-				Effect.flatMap((project) => {
-					if (project === null || project.deletedAt !== null) {
-						return Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }));
-					}
-
-					projects.set(projectId, { ...project, deletedAt: now, updatedAt: now });
-					return Effect.void;
-				}),
-			),
-		update: (projectId: string, changes: ValidatedUpdateProject) =>
-			Effect.sync(() => projects.get(projectId) ?? null).pipe(
-				Effect.flatMap((project) => {
-					if (project === null || project.deletedAt !== null) {
-						return Effect.fail(new ProjectNotFound({ message: "Project was not found.", projectId }));
-					}
-
-					const updated: Project = {
-						...project,
-						name: changes.name ?? project.name,
-						sourceControlProvider: changes.sourceControlProvider ?? project.sourceControlProvider,
-						sourceControlUrl: changes.sourceControlUrl ?? project.sourceControlUrl,
-						updatedAt: now,
-					};
-					projects.set(projectId, updated);
-					return Effect.succeed(updated);
-				}),
-			),
-	});
-});
+import { InMemoryProjectsRepositoryLive } from "./support/in-memory-projects-repository.js";
 
 const TestLayer = ProjectsServiceLive.pipe(Layer.provide(InMemoryProjectsRepositoryLive));
 
@@ -101,6 +25,54 @@ describe("ProjectsService", () => {
 			assert.strictEqual(project.name, "Skopeo Platform");
 			assert.strictEqual(project.sourceControlUrl, "https://github.com/endalk200/skopeo");
 			assert.strictEqual(project.sourceControlProvider, "github");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("canonicalizes GitHub repository URL aliases", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const project = yield* service.create({
+				name: "Skopeo",
+				sourceControlProvider: "github",
+				sourceControlUrl: "https://www.github.com/Endalk200/Skopeo.git?tab=readme",
+			});
+
+			assert.strictEqual(project.sourceControlUrl, "https://github.com/endalk200/skopeo");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("accepts canonical GitLab subgroup repository paths", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const project = yield* service.create({
+				name: "Skopeo",
+				sourceControlProvider: "gitlab",
+				sourceControlUrl: "https://www.gitlab.com/skopeo/platform/api.git",
+			});
+
+			assert.strictEqual(project.sourceControlUrl, "https://gitlab.com/skopeo/platform/api");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects provider pages that are not repository roots", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const githubError = yield* Effect.flip(
+				service.create({
+					...skopeoProject,
+					sourceControlUrl: "https://github.com/endalk200/skopeo/issues/1",
+				}),
+			);
+			const gitlabError = yield* Effect.flip(
+				service.create({
+					...skopeoProject,
+					sourceControlProvider: "gitlab",
+					sourceControlUrl: "https://gitlab.com/endalk200/skopeo/-/issues/1",
+				}),
+			);
+
+			assert.instanceOf(githubError, InvalidProjectInput);
+			assert.instanceOf(gitlabError, InvalidProjectInput);
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
@@ -139,6 +111,22 @@ describe("ProjectsService", () => {
 
 			yield* service.create(skopeoProject);
 			const error = yield* Effect.flip(service.create(skopeoProject));
+
+			assert.instanceOf(error, ProjectConflict);
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects duplicate aliases of an active source control URL", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+
+			yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(
+				service.create({
+					...skopeoProject,
+					sourceControlUrl: "https://www.github.com/ENDALK200/SKOPEO.git",
+				}),
+			);
 
 			assert.instanceOf(error, ProjectConflict);
 		}).pipe(Effect.provide(TestLayer)),
@@ -187,6 +175,41 @@ describe("ProjectsService", () => {
 
 			assert.strictEqual(updated.id, created.id);
 			assert.strictEqual(updated.name, "Skopeo Platform");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects an update with no fields", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(service.update(created.id, {}));
+
+			assert.instanceOf(error, InvalidProjectInput);
+			assert.strictEqual(error.message, "At least one project field must be provided.");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects updating the provider without the URL", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(service.update(created.id, { sourceControlProvider: "gitlab" }));
+
+			assert.instanceOf(error, InvalidProjectInput);
+			assert.strictEqual(error.message, "sourceControlProvider and sourceControlUrl must be updated together.");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
+	it.effect("rejects updating the URL without the provider", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const created = yield* service.create(skopeoProject);
+			const error = yield* Effect.flip(
+				service.update(created.id, { sourceControlUrl: "https://gitlab.com/endalk200/skopeo" }),
+			);
+
+			assert.instanceOf(error, InvalidProjectInput);
+			assert.strictEqual(error.message, "sourceControlProvider and sourceControlUrl must be updated together.");
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
