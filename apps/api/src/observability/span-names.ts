@@ -10,7 +10,8 @@ const projectRoute = /^\/api\/projects\/[^/]+\/?$/;
  * unbounded span-name cardinality.
  */
 const routeShapedPath = (url: string) => {
-	const path = url.split("?")[0] ?? "/";
+	const queryStart = url.indexOf("?");
+	const path = queryStart === -1 ? url : url.slice(0, queryStart);
 
 	if (staticRoutes.has(path)) {
 		return path;
