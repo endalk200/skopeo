@@ -9,12 +9,15 @@
 		"check-types": "tsc -p tsconfig.json --noEmit",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio",
 		"dev": "bun run --conditions development src/index.ts",
 		"format": "biome format --write package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
 		"format:check": "biome format package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
 		"lint": "biome check package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
 		"lint:fix": "biome check --fix package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
-		"test": "vitest run src --passWithNoTests"
+		"start": "node dist/index.js",
+		"test": "vitest run src --exclude \"**/*.integration.test.ts\"",
+		"test:integration": "vitest run src/tests/projects-repository.integration.test.ts"
 	},
 	"dependencies": {
 		"@effect/platform-node": "4.0.0-beta.94",
@@ -26,6 +29,7 @@
 	"devDependencies": {
 		"@effect/vitest": "4.0.0-beta.94",
 		"@skopeo/typescript-config": "workspace:*",
+		"@testcontainers/postgresql": "^12.0.4",
 		"@types/node": "^26.1.1",
 		"@types/pg": "^8.15.6",
 		"drizzle-kit": "1.0.0-rc.4",

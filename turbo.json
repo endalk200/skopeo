@@ -24,6 +24,10 @@
 		"test": {
 			"dependsOn": ["^test"]
 		},
+		"test:integration": {
+			"cache": false,
+			"dependsOn": ["^test:integration"]
+		},
 		"format": {
 			"dependsOn": ["^format"]
 		},
