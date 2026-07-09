@@ -32,5 +32,3 @@ export class ProjectPersistenceError extends Schema.TaggedErrorClass<ProjectPers
 	},
 	{ httpApiStatus: 500 },
 ) {}
-
-export type ProjectError = InvalidProjectInput | ProjectConflict | ProjectNotFound | ProjectPersistenceError;

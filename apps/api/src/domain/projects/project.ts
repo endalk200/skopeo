@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { type Brand, Effect, Schema } from "effect";
 import { InvalidProjectInput } from "./errors.js";
 
 export const SourceControlProvider = Schema.Literals(["github", "gitlab"]).annotate({
@@ -8,39 +8,58 @@ export const SourceControlProvider = Schema.Literals(["github", "gitlab"]).annot
 
 export type SourceControlProvider = (typeof SourceControlProvider)["Type"];
 
-export type Project = {
-	readonly id: string;
-	readonly name: string;
-	readonly sourceControlProvider: SourceControlProvider;
-	readonly sourceControlUrl: string;
-	readonly createdAt: string;
-	readonly updatedAt: string;
-	readonly deletedAt: string | null;
-};
+/**
+ * Canonical project model. The HTTP layer reuses this schema for responses, so
+ * the domain type and the wire format cannot drift: dates are `DateTime.Utc`
+ * in the domain and encode to ISO-8601 strings on the wire.
+ */
+export const Project = Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	sourceControlProvider: SourceControlProvider,
+	sourceControlUrl: Schema.String,
+	createdAt: Schema.DateTimeUtcFromString,
+	updatedAt: Schema.DateTimeUtcFromString,
+	deletedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
+}).annotate({
+	description: "A repository-backed project configured for hosted Skopeo code review workflows.",
+	identifier: "Project",
+});
 
-export type CreateProjectCommand = {
-	readonly name: string;
-	readonly sourceControlProvider: SourceControlProvider;
-	readonly sourceControlUrl: string;
-};
+export type Project = (typeof Project)["Type"];
 
-export type UpdateProjectCommand = {
-	readonly name?: string | undefined;
-	readonly sourceControlProvider?: SourceControlProvider | undefined;
-	readonly sourceControlUrl?: string | undefined;
-};
+export const CreateProjectCommand = Schema.Struct({
+	name: Schema.String,
+	sourceControlProvider: SourceControlProvider,
+	sourceControlUrl: Schema.String,
+});
 
-export type ValidatedCreateProject = {
-	readonly name: string;
-	readonly sourceControlProvider: SourceControlProvider;
-	readonly sourceControlUrl: string;
-};
+export type CreateProjectCommand = (typeof CreateProjectCommand)["Type"];
 
-export type ValidatedUpdateProject = {
-	readonly name?: string | undefined;
-	readonly sourceControlProvider?: SourceControlProvider | undefined;
-	readonly sourceControlUrl?: string | undefined;
-};
+export const UpdateProjectCommand = Schema.Struct({
+	name: Schema.optionalKey(Schema.String),
+	sourceControlProvider: Schema.optionalKey(SourceControlProvider),
+	sourceControlUrl: Schema.optionalKey(Schema.String),
+});
+
+export type UpdateProjectCommand = (typeof UpdateProjectCommand)["Type"];
+
+/**
+ * Branded command shapes. The brands are type-level only, but they guarantee
+ * that `ProjectsRepository` can only receive values produced by
+ * `validateCreateProject` / `validateUpdateProject` — the casts below are the
+ * only places the brands are applied.
+ */
+export type ValidatedCreateProject = Brand.Branded<CreateProjectCommand, "ValidatedCreateProject">;
+
+export type ValidatedUpdateProject = Brand.Branded<
+	{
+		readonly name?: string;
+		readonly sourceControlProvider?: SourceControlProvider;
+		readonly sourceControlUrl?: string;
+	},
+	"ValidatedUpdateProject"
+>;
 
 const providerHosts: Readonly<Record<SourceControlProvider, ReadonlySet<string>>> = {
 	github: new Set(["github.com", "www.github.com"]),
@@ -77,84 +96,105 @@ const providerForHost = (host: string): SourceControlProvider | null => {
 	return null;
 };
 
-const validateSourceControlUrl = (
-	url: string,
-	expectedProvider: SourceControlProvider,
-): Effect.Effect<string, InvalidProjectInput> =>
+const parseUrl = (url: string): Effect.Effect<URL, InvalidProjectInput> =>
 	Effect.try({
-		try: () => {
-			const parsed = new URL(url);
-			if (parsed.protocol !== "https:") {
-				throw new Error("Source control URL must use https.");
-			}
+		try: () => new URL(url),
+		catch: () => new InvalidProjectInput({ message: "Source control URL is invalid." }),
+	});
 
-			const provider = providerForHost(parsed.hostname);
-			if (provider === null) {
-				throw new Error("Source control URL must point to github.com or gitlab.com.");
-			}
+const validateSourceControlUrl = Effect.fn(function* (url: string, expectedProvider: SourceControlProvider) {
+	const parsed = yield* parseUrl(url);
 
-			if (provider !== expectedProvider) {
-				throw new Error("Source control provider does not match the source control URL host.");
-			}
+	if (parsed.protocol !== "https:") {
+		return yield* Effect.fail(new InvalidProjectInput({ message: "Source control URL must use https." }));
+	}
 
-			const pathSegments = parsed.pathname.split("/").filter((segment) => segment.length > 0);
-			if (pathSegments.length < 2) {
-				throw new Error("Source control URL must point to a repository path.");
-			}
+	const provider = providerForHost(parsed.hostname);
+	if (provider === null) {
+		return yield* Effect.fail(
+			new InvalidProjectInput({ message: "Source control URL must point to github.com or gitlab.com." }),
+		);
+	}
 
-			parsed.hash = "";
-			parsed.search = "";
-			return parsed.toString().replace(/\/$/, "");
-		},
-		catch: (cause) =>
+	if (provider !== expectedProvider) {
+		return yield* Effect.fail(
+			new InvalidProjectInput({ message: "Source control provider does not match the source control URL host." }),
+		);
+	}
+
+	const pathSegments = parsed.pathname.split("/").filter((segment) => segment.length > 0);
+	const isGithubRepository = expectedProvider === "github" && pathSegments.length === 2;
+	const isGitlabRepository = expectedProvider === "gitlab" && pathSegments.length >= 2 && !pathSegments.includes("-");
+
+	if (!isGithubRepository && !isGitlabRepository) {
+		return yield* Effect.fail(
+			new InvalidProjectInput({ message: "Source control URL must point to a repository path." }),
+		);
+	}
+
+	const canonicalSegments =
+		expectedProvider === "github" ? pathSegments.map((segment) => segment.toLowerCase()) : pathSegments;
+	const repositoryName = canonicalSegments.at(-1)?.replace(/\.git$/i, "");
+	if (repositoryName === undefined || repositoryName.length === 0) {
+		return yield* Effect.fail(
+			new InvalidProjectInput({ message: "Source control URL must point to a repository path." }),
+		);
+	}
+
+	canonicalSegments[canonicalSegments.length - 1] = repositoryName;
+	parsed.hostname = `${expectedProvider}.com`;
+	parsed.pathname = `/${canonicalSegments.join("/")}`;
+	parsed.hash = "";
+	parsed.search = "";
+	return parsed.toString().replace(/\/$/, "");
+});
+
+export const validateCreateProject = Effect.fn(function* (command: CreateProjectCommand) {
+	const validated: CreateProjectCommand = {
+		name: yield* validateProjectName(command.name),
+		sourceControlProvider: command.sourceControlProvider,
+		sourceControlUrl: yield* validateSourceControlUrl(command.sourceControlUrl, command.sourceControlProvider),
+	};
+
+	return validated as ValidatedCreateProject;
+});
+
+export const validateUpdateProject = Effect.fn(function* (command: UpdateProjectCommand) {
+	const hasName = command.name !== undefined;
+	const hasProvider = command.sourceControlProvider !== undefined;
+	const hasUrl = command.sourceControlUrl !== undefined;
+
+	if (!hasName && !hasProvider && !hasUrl) {
+		return yield* Effect.fail(new InvalidProjectInput({ message: "At least one project field must be provided." }));
+	}
+
+	// Invariant: sourceControlProvider and sourceControlUrl always travel
+	// together, because the URL host is validated against the provider.
+	if (hasProvider !== hasUrl) {
+		return yield* Effect.fail(
 			new InvalidProjectInput({
-				message: cause instanceof Error ? cause.message : "Source control URL is invalid.",
+				message: "sourceControlProvider and sourceControlUrl must be updated together.",
 			}),
-	});
+		);
+	}
 
-export const validateCreateProject = (
-	command: CreateProjectCommand,
-): Effect.Effect<ValidatedCreateProject, InvalidProjectInput> =>
-	Effect.all({
-		name: validateProjectName(command.name),
-		sourceControlProvider: Effect.succeed(command.sourceControlProvider),
-		sourceControlUrl: validateSourceControlUrl(command.sourceControlUrl, command.sourceControlProvider),
-	});
+	const changes: {
+		name?: string;
+		sourceControlProvider?: SourceControlProvider;
+		sourceControlUrl?: string;
+	} = {};
 
-export const validateUpdateProject = (
-	command: UpdateProjectCommand,
-): Effect.Effect<ValidatedUpdateProject, InvalidProjectInput> =>
-	Effect.gen(function* () {
-		const hasName = command.name !== undefined;
-		const hasProvider = command.sourceControlProvider !== undefined;
-		const hasUrl = command.sourceControlUrl !== undefined;
+	if (command.name !== undefined) {
+		changes.name = yield* validateProjectName(command.name);
+	}
 
-		if (!hasName && !hasProvider && !hasUrl) {
-			return yield* Effect.fail(
-				new InvalidProjectInput({ message: "At least one project field must be provided." }),
-			);
-		}
+	if (command.sourceControlProvider !== undefined && command.sourceControlUrl !== undefined) {
+		changes.sourceControlProvider = command.sourceControlProvider;
+		changes.sourceControlUrl = yield* validateSourceControlUrl(
+			command.sourceControlUrl,
+			command.sourceControlProvider,
+		);
+	}
 
-		if (hasProvider !== hasUrl) {
-			return yield* Effect.fail(
-				new InvalidProjectInput({
-					message: "sourceControlProvider and sourceControlUrl must be updated together.",
-				}),
-			);
-		}
-
-		const provider = command.sourceControlProvider;
-		const name = hasName ? yield* validateProjectName(command.name) : undefined;
-
-		if (hasUrl && provider !== undefined) {
-			return {
-				name,
-				sourceControlProvider: provider,
-				sourceControlUrl: yield* validateSourceControlUrl(command.sourceControlUrl, provider),
-			};
-		}
-
-		return {
-			name,
-		};
-	});
+	return changes as ValidatedUpdateProject;
+});

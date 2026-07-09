@@ -6,35 +6,19 @@ import {
 	ProjectNotFound,
 	ProjectPersistenceError,
 } from "../domain/projects/errors.js";
-import { SourceControlProvider } from "../domain/projects/project.js";
+import { CreateProjectCommand, Project, UpdateProjectCommand } from "../domain/projects/project.js";
 
-export const ProjectResponse = Schema.Struct({
-	id: Schema.String,
-	name: Schema.String,
-	sourceControlProvider: SourceControlProvider,
-	sourceControlUrl: Schema.String,
-	createdAt: Schema.String,
-	updatedAt: Schema.String,
-	deletedAt: Schema.NullOr(Schema.String),
-}).annotate({
-	description: "A repository-backed project configured for hosted Skopeo code review workflows.",
-	identifier: "Project",
-});
+// Responses reuse the domain `Project` schema directly, so the wire format
+// cannot drift from the domain model. Requests reuse the command schemas with
+// wire-level annotations layered on top.
+export const ProjectResponse = Project;
 
-export const CreateProjectRequest = Schema.Struct({
-	name: Schema.String,
-	sourceControlProvider: SourceControlProvider,
-	sourceControlUrl: Schema.String,
-}).annotate({
+export const CreateProjectRequest = CreateProjectCommand.annotate({
 	description: "Fields required to register a project.",
 	identifier: "CreateProjectRequest",
 });
 
-export const UpdateProjectRequest = Schema.Struct({
-	name: Schema.optionalKey(Schema.String),
-	sourceControlProvider: Schema.optionalKey(SourceControlProvider),
-	sourceControlUrl: Schema.optionalKey(Schema.String),
-}).annotate({
+export const UpdateProjectRequest = UpdateProjectCommand.annotate({
 	description: "Fields that can be changed for a project.",
 	identifier: "UpdateProjectRequest",
 });
