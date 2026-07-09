@@ -12,12 +12,13 @@ import { TelemetryLive } from "../observability/telemetry.js";
 import { SkopeoApi } from "./api.js";
 import { HealthRoutesLive } from "./health.js";
 import { ProjectsHandlersLive } from "./projects-handlers.js";
+import { RequestBodyLimitMiddlewareLive, RequestBodySizeLive } from "./request-limits.js";
 
 const ApiRoutesLive = Layer.mergeAll(
 	HttpApiBuilder.layer(SkopeoApi, { openapiPath: "/openapi.json" }),
 	HttpApiSwagger.layer(SkopeoApi, { path: "/docs" }),
 	HealthRoutesLive,
-).pipe(Layer.provide(ProjectsHandlersLive));
+).pipe(Layer.provide(ProjectsHandlersLive), Layer.provide(RequestBodyLimitMiddlewareLive));
 
 const DomainLive = ProjectsServiceLive.pipe(Layer.provide(DrizzleProjectsRepositoryLive));
 
@@ -40,5 +41,6 @@ export const ServerLive = HttpRouter.serve(ApiRoutesLive).pipe(
 	Layer.provide(TelemetryLive),
 	Layer.provide(HttpMiddleware.layerTracerDisabledForUrls(["/healthz", "/readyz"])),
 	Layer.provide(SpanNamesLive),
+	Layer.provide(RequestBodySizeLive),
 	Layer.provide(AppConfigLive),
 );
