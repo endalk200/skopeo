@@ -13,6 +13,7 @@ const makeTestLayer = (ping: Effect.Effect<void, DatabaseUnavailable>) =>
 
 const HealthyLayer = makeTestLayer(Effect.void);
 const UnhealthyLayer = makeTestLayer(Effect.fail(new DatabaseUnavailable({ message: "Database is unreachable." })));
+const DefectiveLayer = makeTestLayer(Effect.die(new Error("Database driver defect.")));
 
 describe("Health endpoints", () => {
 	it.effect("healthz responds 200 without touching the database", () =>
@@ -40,5 +41,13 @@ describe("Health endpoints", () => {
 			assert.strictEqual(response.status, 503);
 			assert.strictEqual(yield* response.text, "unavailable");
 		}).pipe(Effect.provide(UnhealthyLayer)),
+	);
+
+	it.effect("readyz responds 500 when the database health check defects", () =>
+		Effect.gen(function* () {
+			const response = yield* HttpClient.get("/readyz");
+
+			assert.strictEqual(response.status, 500);
+		}).pipe(Effect.provide(DefectiveLayer)),
 	);
 });

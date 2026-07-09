@@ -1,26 +1,48 @@
 import { PgClient } from "@effect/sql-pg";
 import type { EffectPgDatabase } from "drizzle-orm/effect-postgres";
 import * as Drizzle from "drizzle-orm/effect-postgres";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Cause, Context, Effect, Fiber, Layer, Redacted, Schema, Scope } from "effect";
 import { Pool } from "pg";
 import { AppConfig } from "../../config/app-config.js";
 
 export class Database extends Context.Service<Database, EffectPgDatabase>()("skopeo/api/Database") {}
 
+const poolErrorListeners = new WeakMap<Pool, (error: Error) => void>();
+
 const acquirePool = (databaseUrl: Redacted.Redacted<string>) =>
-	Effect.acquireRelease(
-		Effect.sync(() => {
-			const pool = new Pool({
-				application_name: "skopeo-api",
-				connectionString: Redacted.value(databaseUrl),
-				connectionTimeoutMillis: 5_000,
-				max: 10,
-			});
-			pool.on("error", () => {});
-			return pool;
-		}),
-		(pool) => Effect.promise(() => pool.end()).pipe(Effect.timeoutOption(1_000), Effect.asVoid),
-	);
+	Effect.gen(function* () {
+		// EventEmitter callbacks run outside Effect fibers. Capture the current
+		// scoped context so failures reach OTLP and callbacks stop with the pool.
+		const services = yield* Effect.context<Scope.Scope>();
+		const scope = Context.get(services, Scope.Scope);
+		const runFork = Effect.runForkWith(services);
+
+		return yield* Effect.acquireRelease(
+			Effect.sync(() => {
+				const pool = new Pool({
+					application_name: "skopeo-api",
+					connectionString: Redacted.value(databaseUrl),
+					connectionTimeoutMillis: 5_000,
+					max: 10,
+				});
+				const onPoolError = (error: Error) =>
+					Fiber.runIn(runFork(Effect.logError("PostgreSQL pool error", Cause.die(error))), scope);
+				pool.on("error", onPoolError);
+				poolErrorListeners.set(pool, onPoolError);
+				return pool;
+			}),
+			(pool) =>
+				Effect.promise(() =>
+					pool.end().finally(() => {
+						const listener = poolErrorListeners.get(pool);
+						if (listener !== undefined) {
+							pool.off("error", listener);
+							poolErrorListeners.delete(pool);
+						}
+					}),
+				).pipe(Effect.timeoutOption(1_000), Effect.asVoid),
+		);
+	});
 
 const PgClientLive = Layer.unwrap(
 	Effect.map(AppConfig, (config) =>
