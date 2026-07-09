@@ -109,6 +109,12 @@ const validateSourceControlUrl = Effect.fn(function* (url: string, expectedProvi
 		return yield* Effect.fail(new InvalidProjectInput({ message: "Source control URL must use https." }));
 	}
 
+	if (parsed.username !== "" || parsed.password !== "") {
+		return yield* Effect.fail(
+			new InvalidProjectInput({ message: "Source control URL must not include credentials." }),
+		);
+	}
+
 	const provider = providerForHost(parsed.hostname);
 	if (provider === null) {
 		return yield* Effect.fail(
