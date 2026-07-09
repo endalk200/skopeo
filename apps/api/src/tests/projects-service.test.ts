@@ -105,6 +105,21 @@ describe("ProjectsService", () => {
 		}).pipe(Effect.provide(TestLayer)),
 	);
 
+	it.effect("rejects source control URLs with embedded credentials", () =>
+		Effect.gen(function* () {
+			const service = yield* ProjectsService;
+			const error = yield* Effect.flip(
+				service.create({
+					...skopeoProject,
+					sourceControlUrl: "https://token@github.com/endalk200/skopeo",
+				}),
+			);
+
+			assert.instanceOf(error, InvalidProjectInput);
+			assert.strictEqual(error.message, "Source control URL must not include credentials.");
+		}).pipe(Effect.provide(TestLayer)),
+	);
+
 	it.effect("rejects duplicate active source control URLs", () =>
 		Effect.gen(function* () {
 			const service = yield* ProjectsService;
