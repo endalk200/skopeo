@@ -1,21 +1,25 @@
 import { createServer } from "node:http";
 import { NodeHttpServer } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
-import { HttpRouter } from "effect/unstable/http";
+import { HttpMiddleware, HttpRouter } from "effect/unstable/http";
 import { HttpApiBuilder, HttpApiSwagger } from "effect/unstable/httpapi";
 import { AppConfig, AppConfigLive } from "../config/app-config.js";
 import { ProjectsServiceLive } from "../domain/projects/service.js";
-import { DatabaseLive } from "../infra/db/database.js";
+import { DatabaseHealthLive, DatabaseLive } from "../infra/db/database.js";
 import { DrizzleProjectsRepositoryLive } from "../infra/db/projects-repository.js";
+import { SpanNamesLive } from "../observability/span-names.js";
+import { TelemetryLive } from "../observability/telemetry.js";
 import { SkopeoApi } from "./api.js";
-import { ProjectsHttpLive } from "./projects-handlers.js";
+import { HealthRoutesLive } from "./health.js";
+import { ProjectsHandlersLive } from "./projects-handlers.js";
 
 const ApiRoutesLive = Layer.mergeAll(
 	HttpApiBuilder.layer(SkopeoApi, { openapiPath: "/openapi.json" }),
 	HttpApiSwagger.layer(SkopeoApi, { path: "/docs" }),
-).pipe(Layer.provide(ProjectsHttpLive));
+	HealthRoutesLive,
+).pipe(Layer.provide(ProjectsHandlersLive));
 
-const DomainLive = ProjectsServiceLive.pipe(Layer.provide(DrizzleProjectsRepositoryLive), Layer.provide(DatabaseLive));
+const DomainLive = ProjectsServiceLive.pipe(Layer.provide(DrizzleProjectsRepositoryLive));
 
 const NodeServerLive = Layer.unwrap(
 	Effect.map(AppConfig, (config) =>
@@ -26,9 +30,15 @@ const NodeServerLive = Layer.unwrap(
 	),
 );
 
-export const makeServerLayer = () =>
-	HttpRouter.serve(ApiRoutesLive).pipe(
-		Layer.provide(DomainLive),
-		Layer.provide(NodeServerLive),
-		Layer.provide(AppConfigLive),
-	);
+export const ServerLive = HttpRouter.serve(ApiRoutesLive).pipe(
+	Layer.provide(DomainLive),
+	Layer.provide(DatabaseHealthLive),
+	Layer.provide(DatabaseLive),
+	Layer.provide(NodeServerLive),
+	// Telemetry must be provided into the server so its tracer, metrics exporter,
+	// and additional OTLP logger reach request fibers.
+	Layer.provide(TelemetryLive),
+	Layer.provide(HttpMiddleware.layerTracerDisabledForUrls(["/healthz", "/readyz"])),
+	Layer.provide(SpanNamesLive),
+	Layer.provide(AppConfigLive),
+);
