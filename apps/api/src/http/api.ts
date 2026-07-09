@@ -7,6 +7,7 @@ import {
 	ProjectPersistenceError,
 } from "../domain/projects/errors.js";
 import { CreateProjectCommand, Project, UpdateProjectCommand } from "../domain/projects/project.js";
+import { RequestBodyLimitMiddleware } from "./request-limits.js";
 
 // Responses reuse the domain `Project` schema directly, so the wire format
 // cannot drift from the domain model. Requests reuse the command schemas with
@@ -41,7 +42,9 @@ const createProject = HttpApiEndpoint.post("createProject", "/projects", {
 	payload: CreateProjectRequest,
 	success: HttpApiSchema.status(201)(ProjectResponse),
 	error: CreateProjectErrors,
-}).annotate(OpenApi.Summary, "Create project");
+})
+	.middleware(RequestBodyLimitMiddleware)
+	.annotate(OpenApi.Summary, "Create project");
 
 const getProject = HttpApiEndpoint.get("getProject", "/projects/:projectId", {
 	params: ProjectParams,
@@ -54,7 +57,9 @@ const updateProject = HttpApiEndpoint.patch("updateProject", "/projects/:project
 	payload: UpdateProjectRequest,
 	success: ProjectResponse,
 	error: UpdateProjectErrors,
-}).annotate(OpenApi.Summary, "Update project");
+})
+	.middleware(RequestBodyLimitMiddleware)
+	.annotate(OpenApi.Summary, "Update project");
 
 const deleteProject = HttpApiEndpoint.make("DELETE")("deleteProject", "/projects/:projectId", {
 	params: ProjectParams,
