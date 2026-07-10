@@ -25,7 +25,7 @@ Match the project's existing conventions for tooling — don't add a new package
 
 ### 3. Isolate the logic in a portable module
 
-Put the actual logic — the bit that's answering the question — behind a small, pure interface whose shape can guide the real implementation later. The TUI and its logic module are both throwaway; the validated design is what survives.
+Put the actual logic — the bit that's answering the question — behind a small, pure interface whose shape can guide the real implementation later. The TUI and its logic module are disposable from the main branch, but both are preserved in the evidence snapshot; the validated design is what survives into the production reimplementation.
 
 The right shape depends on the question:
 
