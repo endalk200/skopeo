@@ -12,8 +12,8 @@ Pull requests into `main` are expected to pass two required checks:
 - `Analyze`
 
 `Quality Gate` comes from `.github/workflows/ci.yml`. It installs dependencies
-with Bun `1.3.6`, then runs formatting checks, linting, type checks, tests, and
-the build.
+with Bun `1.3.6`, then runs formatting checks, package boundary validation,
+linting, type checks, tests, and the build.
 
 `Analyze` comes from `.github/workflows/codeql.yml`. It runs CodeQL for
 JavaScript and TypeScript.

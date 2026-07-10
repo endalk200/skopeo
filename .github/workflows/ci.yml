@@ -61,6 +61,20 @@ jobs:
       - name: Lint
         run: bun run lint
 
+  boundaries:
+    name: Package Boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
+
+      - name: Check package boundaries
+        run: bun run boundaries
+
   check-types:
     name: Check Types
     runs-on: ubuntu-latest
@@ -153,6 +167,7 @@ jobs:
     needs:
       - format
       - lint
+      - boundaries
       - check-types
       - test
       - build
@@ -165,6 +180,7 @@ jobs:
           for check in \
             "Format:${{ needs.format.result }}" \
             "Lint:${{ needs.lint.result }}" \
+            "Package Boundaries:${{ needs.boundaries.result }}" \
             "Check Types:${{ needs['check-types'].result }}" \
             "Test:${{ needs.test.result }}" \
             "Build:${{ needs.build.result }}"
