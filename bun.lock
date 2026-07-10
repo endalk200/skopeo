@@ -81,7 +81,36 @@
         "typescript": "6.0.3",
       },
     },
-    "packages/agents/code-review": {
+    "packages/cli/config": {
+      "name": "@skopeo/config",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "4.0.0-beta.94",
+        "toml": "^4.1.2",
+      },
+      "devDependencies": {
+        "@effect/vitest": "4.0.0-beta.94",
+        "@skopeo/typescript-config": "workspace:*",
+        "@types/node": "^26.1.1",
+        "typescript": "6.0.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/cli/utils": {
+      "name": "@skopeo/utils",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@effect/opentelemetry": "4.0.0-beta.94",
+        "@effect/platform-node": "4.0.0-beta.94",
+        "@effect/vitest": "4.0.0-beta.94",
+        "@skopeo/typescript-config": "workspace:*",
+        "@types/node": "^26.1.1",
+        "effect": "4.0.0-beta.94",
+        "typescript": "6.0.3",
+        "vitest": "^4.1.10",
+      },
+    },
+    "packages/shared/code-review-agent": {
       "name": "@skopeo/code-review-agent",
       "version": "0.0.0",
       "dependencies": {
@@ -102,26 +131,7 @@
         "vitest": "^4.1.10",
       },
     },
-    "packages/biome-config": {
-      "name": "@skopeo/biome-config",
-      "version": "0.0.0",
-    },
-    "packages/config": {
-      "name": "@skopeo/config",
-      "version": "0.0.0",
-      "dependencies": {
-        "effect": "4.0.0-beta.94",
-        "toml": "^4.1.2",
-      },
-      "devDependencies": {
-        "@effect/vitest": "4.0.0-beta.94",
-        "@skopeo/typescript-config": "workspace:*",
-        "@types/node": "^26.1.1",
-        "typescript": "6.0.3",
-        "vitest": "^4.1.10",
-      },
-    },
-    "packages/tools": {
+    "packages/shared/tools": {
       "name": "@skopeo/tools",
       "version": "0.0.0",
       "dependencies": {
@@ -138,23 +148,13 @@
         "vitest": "^4.1.10",
       },
     },
-    "packages/typescript-config": {
-      "name": "@skopeo/typescript-config",
+    "packages/tooling/biome-config": {
+      "name": "@skopeo/biome-config",
       "version": "0.0.0",
     },
-    "packages/utils": {
-      "name": "@skopeo/utils",
+    "packages/tooling/typescript-config": {
+      "name": "@skopeo/typescript-config",
       "version": "0.0.0",
-      "devDependencies": {
-        "@effect/opentelemetry": "4.0.0-beta.94",
-        "@effect/platform-node": "4.0.0-beta.94",
-        "@effect/vitest": "4.0.0-beta.94",
-        "@skopeo/typescript-config": "workspace:*",
-        "@types/node": "^26.1.1",
-        "effect": "4.0.0-beta.94",
-        "typescript": "6.0.3",
-        "vitest": "^4.1.10",
-      },
     },
   },
   "overrides": {
@@ -504,19 +504,19 @@
 
     "@skopeo/api": ["@skopeo/api@workspace:apps/api"],
 
-    "@skopeo/biome-config": ["@skopeo/biome-config@workspace:packages/biome-config"],
+    "@skopeo/biome-config": ["@skopeo/biome-config@workspace:packages/tooling/biome-config"],
 
     "@skopeo/cli": ["@skopeo/cli@workspace:apps/cli"],
 
-    "@skopeo/code-review-agent": ["@skopeo/code-review-agent@workspace:packages/agents/code-review"],
+    "@skopeo/code-review-agent": ["@skopeo/code-review-agent@workspace:packages/shared/code-review-agent"],
 
-    "@skopeo/config": ["@skopeo/config@workspace:packages/config"],
+    "@skopeo/config": ["@skopeo/config@workspace:packages/cli/config"],
 
-    "@skopeo/tools": ["@skopeo/tools@workspace:packages/tools"],
+    "@skopeo/tools": ["@skopeo/tools@workspace:packages/shared/tools"],
 
-    "@skopeo/typescript-config": ["@skopeo/typescript-config@workspace:packages/typescript-config"],
+    "@skopeo/typescript-config": ["@skopeo/typescript-config@workspace:packages/tooling/typescript-config"],
 
-    "@skopeo/utils": ["@skopeo/utils@workspace:packages/utils"],
+    "@skopeo/utils": ["@skopeo/utils@workspace:packages/cli/utils"],
 
     "@skopeo/web": ["@skopeo/web@workspace:apps/web"],
 

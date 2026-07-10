@@ -5,10 +5,54 @@
 		"biome.json",
 		"apps/*/biome.json",
 		"apps/*/turbo.json",
-		"packages/biome-config/**",
-		"packages/typescript-config/**"
+		"packages/tooling/biome-config/**",
+		"packages/tooling/typescript-config/**"
 	],
 	"ui": "stream",
+	"boundaries": {
+		"tags": {
+			"app-api": {
+				"dependencies": {
+					"allow": ["api", "shared", "tooling"]
+				}
+			},
+			"app-cli": {
+				"dependencies": {
+					"allow": ["cli", "shared", "tooling"]
+				}
+			},
+			"app-web": {
+				"dependencies": {
+					"allow": ["web", "shared", "tooling"]
+				}
+			},
+			"api": {
+				"dependencies": {
+					"allow": ["api", "shared", "tooling"]
+				}
+			},
+			"cli": {
+				"dependencies": {
+					"allow": ["cli", "shared", "tooling"]
+				}
+			},
+			"shared": {
+				"dependencies": {
+					"allow": ["shared", "tooling"]
+				}
+			},
+			"tooling": {
+				"dependencies": {
+					"allow": ["tooling"]
+				}
+			},
+			"web": {
+				"dependencies": {
+					"allow": ["web", "shared", "tooling"]
+				}
+			}
+		}
+	},
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
