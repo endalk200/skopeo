@@ -65,6 +65,12 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Test Postgres integration
+        run: bun run test:integration
+
+      - name: Check package boundaries
+        run: bun run boundaries
+
       - name: Build
         run: bun run build
 
