@@ -1,8 +1,7 @@
 import { Layer } from "effect";
 import { HttpMiddleware } from "effect/unstable/http";
 
-const staticRoutes = new Set(["/api/projects", "/docs", "/healthz", "/openapi.json", "/readyz"]);
-const projectRoute = /^\/api\/projects\/[^/]+\/?$/;
+const staticRoutes = new Set(["/docs", "/healthz", "/openapi.json", "/readyz"]);
 
 /**
  * Maps only known request shapes to route names. The fallback never contains
@@ -17,10 +16,6 @@ const routeShapedPath = (url: string) => {
 		return path;
 	}
 
-	if (projectRoute.test(path)) {
-		return "/api/projects/:projectId";
-	}
-
 	return null;
 };
 
@@ -30,10 +25,9 @@ export const spanNameForRequest = (method: string, url: string) => {
 };
 
 /**
- * Names HTTP server spans `GET /api/projects/:projectId` instead of the default
- * `http.server GET`. The span name is generated before routing, so the
- * matched route is not available here — the router still records the exact
- * match as the `http.route` span attribute.
+ * Gives known static routes stable HTTP server span names. The name is
+ * generated before routing, so the matched route is not available here — the
+ * router still records the exact match as the `http.route` span attribute.
  */
 export const SpanNamesLive = Layer.succeed(HttpMiddleware.SpanNameGenerator)((request) =>
 	spanNameForRequest(request.method, request.url),
