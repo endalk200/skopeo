@@ -1,6 +1,7 @@
 {
 	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
 	"extends": ["//"],
+	"tags": ["app-web"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],

@@ -45,7 +45,10 @@
 	"packageManager": "bun@1.3.6",
 	"workspaces": [
 		"apps/*",
-		"packages/*",
-		"packages/agents/*"
+		"packages/api/*",
+		"packages/cli/*",
+		"packages/shared/*",
+		"packages/tooling/*",
+		"packages/web/*"
 	]
 }

@@ -10,7 +10,7 @@ const bashInputSchema = z.object({
 	}),
 	path: z.string().meta({
 		description:
-			"Directory to run the command from. Use '.' for the repository root, a repository-relative directory such as 'packages/tools', or an absolute directory inside the repository.",
+			"Directory to run the command from. Use '.' for the repository root, a repository-relative directory such as 'packages/shared/tools', or an absolute directory inside the repository.",
 	}),
 	timeoutMs: z
 		.number()
@@ -41,7 +41,7 @@ Use read-only commands for exploration, and prefer repository-relative paths unl
 Usage examples:
 - List workspace files: { "command": "ls", "path": "." }
 - Run tests from the repo root: { "command": "bun run test", "path": ".", "timeoutMs": 120000 }
-- Check a package script from a subdirectory: { "command": "bun run check-types", "path": "packages/tools" }`,
+- Check a package script from a subdirectory: { "command": "bun run check-types", "path": "packages/shared/tools" }`,
 	inputSchema: bashInputSchema,
 	outputSchema: bashOutputSchema,
 });

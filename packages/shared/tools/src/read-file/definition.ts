@@ -10,7 +10,7 @@ export type ToolDefinitionFactoryOptions = {
 const readFileInputSchema = z.object({
 	path: z.string().meta({
 		description:
-			"File path to read. Use a repository-relative path such as 'packages/tools/src/index.ts' or an absolute file path inside the repository; secret-like files are blocked.",
+			"File path to read. Use a repository-relative path such as 'packages/shared/tools/src/index.ts' or an absolute file path inside the repository; secret-like files are blocked.",
 	}),
 });
 
@@ -26,7 +26,7 @@ export const readFileToolDefinition = toolDefinition({
 Use this before editing or explaining code so decisions are based on the current workspace contents.
 
 Usage examples:
-- Read a source file: { "path": "packages/tools/src/read-file/definition.ts" }
+- Read a source file: { "path": "packages/shared/tools/src/read-file/definition.ts" }
 - Read project documentation: { "path": "CONTEXT.md" }
 - Read configuration: { "path": "package.json" }`,
 	inputSchema: readFileInputSchema,
