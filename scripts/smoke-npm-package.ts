@@ -1,7 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
 
 const repoRoot = join(import.meta.dirname, "..");
 const cliRoot = join(repoRoot, "apps", "cli");
@@ -29,6 +29,11 @@ const run = (command: string, args: ReadonlyArray<string>, cwd: string) => {
 
 const packOutput = run("npm", ["pack", "--json", "--pack-destination", smokeRoot, cliRoot], repoRoot);
 const [packedPackage] = JSON.parse(packOutput) as Array<{ readonly filename: string }>;
+
+if (packedPackage === undefined) {
+	throw new Error("npm pack did not return a package.");
+}
+
 const tarballPath = join(smokeRoot, packedPackage.filename);
 
 run("npm", ["init", "-y"], smokeRoot);

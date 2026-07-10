@@ -1,5 +1,25 @@
 {
-	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
+	"$schema": "https://turborepo.dev/schema.json",
 	"extends": ["//"],
-	"tags": ["tooling"]
+	"tags": ["tooling"],
+	"tasks": {
+		"format:check": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/biome.json",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/scripts/**",
+				"$TURBO_ROOT$/turbo.json"
+			]
+		},
+		"lint": {
+			"inputs": [
+				"$TURBO_DEFAULT$",
+				"$TURBO_ROOT$/biome.json",
+				"$TURBO_ROOT$/package.json",
+				"$TURBO_ROOT$/scripts/**",
+				"$TURBO_ROOT$/turbo.json"
+			]
+		}
+	}
 }

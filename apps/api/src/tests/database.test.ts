@@ -8,7 +8,7 @@ const UnavailableDatabaseConfig = Layer.succeed(AppConfig)(
 		databaseUrl: Redacted.make("postgres://postgres:postgres@127.0.0.1:1/skopeo"),
 		host: "127.0.0.1",
 		otlpBaseUrl: "http://127.0.0.1:27686",
-		port: 3000,
+		port: 4000,
 	}),
 );
 

@@ -1,12 +1,20 @@
 {
-	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
+	"$schema": "https://turborepo.dev/schema.json",
 	"extends": ["//"],
 	"tags": ["app-web"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
+			"env": ["NEXT_PUBLIC_*"],
 			"inputs": ["$TURBO_DEFAULT$", ".env*"],
 			"outputs": [".next/**", "!.next/cache/**"]
+		},
+		"dev": {
+			"passThroughEnv": ["HOSTNAME", "NEXT_PUBLIC_*", "PORT"]
+		},
+		"start": {
+			"dependsOn": ["build"],
+			"passThroughEnv": ["HOSTNAME", "PORT"]
 		}
 	}
 }

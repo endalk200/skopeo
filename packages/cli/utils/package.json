@@ -14,10 +14,10 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"check-types": "tsc -p tsconfig.json --noEmit",
-		"format": "biome format --write package.json tsconfig.json src",
-		"format:check": "biome format package.json tsconfig.json src",
-		"lint": "biome check package.json tsconfig.json src",
-		"lint:fix": "biome check --fix package.json tsconfig.json src",
+		"format": "biome check --write --linter-enabled=false package.json tsconfig.json src",
+		"format:check": "biome check --linter-enabled=false package.json tsconfig.json src",
+		"lint": "biome lint package.json tsconfig.json src",
+		"lint:fix": "biome lint --write package.json tsconfig.json src",
 		"test": "vitest run src --passWithNoTests"
 	},
 	"devDependencies": {

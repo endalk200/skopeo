@@ -53,6 +53,10 @@ const [packedPackage] = JSON.parse(pack.stdout) as Array<{
 	readonly version: string;
 }>;
 
+if (packedPackage === undefined) {
+	throw new Error("npm pack --dry-run did not return a package.");
+}
+
 if (packedPackage.version !== packageJson.version) {
 	throw new Error(`Packed version ${packedPackage.version} does not match package version ${packageJson.version}.`);
 }
