@@ -1,13 +1,7 @@
 {
-	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
-	"globalDependencies": [
-		"scripts/**",
-		"biome.json",
-		"apps/*/biome.json",
-		"apps/*/turbo.json",
-		"packages/tooling/biome-config/**",
-		"packages/tooling/typescript-config/**"
-	],
+	"$schema": "https://turborepo.dev/schema.json",
+	"concurrency": "4",
+	"globalPassThroughEnv": ["CI"],
 	"ui": "stream",
 	"boundaries": {
 		"tags": {
@@ -56,30 +50,53 @@
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
-			"inputs": ["$TURBO_DEFAULT$", ".env*"],
 			"outputs": ["dist/**"]
 		},
-		"lint": {
-			"dependsOn": ["^lint"]
+		"check-types": {
+			"dependsOn": ["transit"]
 		},
-		"lint:fix": {
-			"dependsOn": ["^lint:fix"]
+		"cli:dev": {
+			"cache": false
 		},
-		"test": {
-			"dependsOn": ["^test"]
+		"db:generate": {
+			"cache": false
 		},
-		"test:integration": {
+		"db:migrate": {
+			"cache": false
+		},
+		"db:studio": {
 			"cache": false,
-			"dependsOn": ["^test:integration"]
+			"persistent": true
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
 		},
 		"format": {
-			"dependsOn": ["^format"]
+			"cache": false
 		},
 		"format:check": {
-			"dependsOn": ["^format:check"]
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"]
 		},
-		"check-types": {
-			"dependsOn": ["^check-types"]
+		"lint": {
+			"dependsOn": ["transit"],
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"]
+		},
+		"lint:fix": {
+			"cache": false
+		},
+		"start": {
+			"cache": false,
+			"persistent": true
+		},
+		"test": {
+			"dependsOn": ["transit"]
+		},
+		"test:integration": {
+			"cache": false
+		},
+		"transit": {
+			"dependsOn": ["^transit"]
 		}
 	}
 }

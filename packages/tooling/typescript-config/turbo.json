@@ -1,5 +1,10 @@
 {
-	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
+	"$schema": "https://turborepo.dev/schema.json",
 	"extends": ["//"],
-	"tags": ["tooling"]
+	"tags": ["tooling"],
+	"tasks": {
+		"check-types": {
+			"inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/scripts/**"]
+		}
+	}
 }

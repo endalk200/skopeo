@@ -10,14 +10,14 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
-		"dev": "bun run --conditions development src/index.ts",
-		"format": "biome format --write package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
-		"format:check": "biome format package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
-		"lint": "biome check package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
-		"lint:fix": "biome check --fix package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
-		"start": "node dist/index.js",
+		"dev": "bun run --watch --conditions development src/index.ts",
+		"format": "biome check --write --linter-enabled=false package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
+		"format:check": "biome check --linter-enabled=false package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
+		"lint": "biome lint package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
+		"lint:fix": "biome lint --write package.json tsconfig.json tsconfig.build.json drizzle.config.ts drizzle src",
+		"start": "node --env-file-if-exists=.env dist/index.js",
 		"test": "vitest run src --exclude \"**/*.integration.test.ts\"",
-		"test:integration": "vitest run integration.test --passWithNoTests"
+		"test:integration": "vitest run integration.test"
 	},
 	"dependencies": {
 		"@effect/platform-node": "4.0.0-beta.94",

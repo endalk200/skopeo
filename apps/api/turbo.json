@@ -1,5 +1,26 @@
 {
-	"$schema": "https://v2-9-14.turborepo.dev/schema.json",
+	"$schema": "https://turborepo.dev/schema.json",
 	"extends": ["//"],
-	"tags": ["app-api"]
+	"tags": ["app-api"],
+	"tasks": {
+		"db:generate": {
+			"passThroughEnv": ["DATABASE_URL"]
+		},
+		"db:migrate": {
+			"passThroughEnv": ["DATABASE_URL"]
+		},
+		"db:studio": {
+			"passThroughEnv": ["DATABASE_URL"]
+		},
+		"dev": {
+			"passThroughEnv": ["DATABASE_URL", "HOST", "OTLP_BASE_URL", "PORT"]
+		},
+		"start": {
+			"dependsOn": ["build"],
+			"passThroughEnv": ["DATABASE_URL", "HOST", "OTLP_BASE_URL", "PORT"]
+		},
+		"test:integration": {
+			"passThroughEnv": ["DOCKER_*", "TESTCONTAINERS_*"]
+		}
+	}
 }

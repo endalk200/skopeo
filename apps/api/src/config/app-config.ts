@@ -17,7 +17,7 @@ const descriptor = Config.all({
 		// Otlp appends /v1/{logs,metrics,traces}; strip URL's trailing slash.
 		Config.map((url) => url.toString().replace(/\/$/, "")),
 	),
-	port: Config.port("PORT").pipe(Config.withDefault(3000)),
+	port: Config.port("PORT").pipe(Config.withDefault(4000)),
 });
 
 export const AppConfigLive = Layer.effect(

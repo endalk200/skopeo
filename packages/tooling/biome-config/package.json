@@ -3,9 +3,10 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"format": "biome format --write package.json base.json README.md",
-		"format:check": "biome format package.json base.json README.md",
-		"lint": "biome check package.json base.json README.md"
+		"format": "biome check --write --linter-enabled=false package.json base.json README.md ../../../package.json ../../../turbo.json ../../../biome.json ../../../scripts",
+		"format:check": "biome check --linter-enabled=false package.json base.json README.md ../../../package.json ../../../turbo.json ../../../biome.json ../../../scripts",
+		"lint": "biome lint package.json base.json README.md ../../../package.json ../../../turbo.json ../../../biome.json ../../../scripts",
+		"lint:fix": "biome lint --write package.json base.json README.md ../../../package.json ../../../turbo.json ../../../biome.json ../../../scripts"
 	},
 	"exports": {
 		"./base": "./base.json"
