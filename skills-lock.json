@@ -73,18 +73,6 @@
 			"skillPath": "skills/tdd/SKILL.md",
 			"computedHash": "cf4e91b50571385ddf45a823d13e9c91be7c4b0c42ec5252b746ddfd8bfae6b9"
 		},
-		"to-issues": {
-			"source": "endalk200/skills",
-			"sourceType": "github",
-			"skillPath": "skills/engineering/to-issues/SKILL.md",
-			"computedHash": "1528793a636aa967d426bcc4b9297176fcf4bad0456c478f7982ac136142527e"
-		},
-		"to-prd": {
-			"source": "endalk200/skills",
-			"sourceType": "github",
-			"skillPath": "skills/engineering/to-prd/SKILL.md",
-			"computedHash": "7259cea5e1abb2e69861c75c8ad92143a8d6191811b30fcbfac68f507988b467"
-		},
 		"to-spec": {
 			"source": "endalk200/skills",
 			"sourceType": "github",
@@ -113,12 +101,6 @@
 			"sourceType": "github",
 			"skillPath": "skills/writing-great-skills/SKILL.md",
 			"computedHash": "42fe94c64d7b9acda9ce7d6495a3476893a1b18615986528f55f7162a29789d4"
-		},
-		"zoom-out": {
-			"source": "endalk200/skills",
-			"sourceType": "github",
-			"skillPath": "skills/engineering/zoom-out/SKILL.md",
-			"computedHash": "8357aeaece3b709c442eab67e64b86844e05e2f1ea95b109565eba50b6def36e"
 		}
 	}
 }
