@@ -4,23 +4,18 @@ import { Effect, Layer } from "effect";
 import { HttpMiddleware, HttpRouter } from "effect/unstable/http";
 import { HttpApiBuilder, HttpApiSwagger } from "effect/unstable/httpapi";
 import { AppConfig, AppConfigLive } from "../config/app-config.js";
-import { ProjectsServiceLive } from "../domain/projects/service.js";
 import { DatabaseHealthLive, DatabaseLive } from "../infra/db/database.js";
-import { DrizzleProjectsRepositoryLive } from "../infra/db/projects-repository.js";
 import { SpanNamesLive } from "../observability/span-names.js";
 import { TelemetryLive } from "../observability/telemetry.js";
 import { SkopeoApi } from "./api.js";
 import { HealthRoutesLive } from "./health.js";
-import { ProjectsHandlersLive } from "./projects-handlers.js";
 import { RequestBodyLimitMiddlewareLive, RequestBodySizeLive } from "./request-limits.js";
 
 const ApiRoutesLive = Layer.mergeAll(
 	HttpApiBuilder.layer(SkopeoApi, { openapiPath: "/openapi.json" }),
 	HttpApiSwagger.layer(SkopeoApi, { path: "/docs" }),
 	HealthRoutesLive,
-).pipe(Layer.provide(ProjectsHandlersLive), Layer.provide(RequestBodyLimitMiddlewareLive));
-
-const DomainLive = ProjectsServiceLive.pipe(Layer.provide(DrizzleProjectsRepositoryLive));
+).pipe(Layer.provide(RequestBodyLimitMiddlewareLive));
 
 const NodeServerLive = Layer.unwrap(
 	Effect.map(AppConfig, (config) =>
@@ -32,7 +27,6 @@ const NodeServerLive = Layer.unwrap(
 );
 
 export const ServerLive = HttpRouter.serve(ApiRoutesLive).pipe(
-	Layer.provide(DomainLive),
 	Layer.provide(DatabaseHealthLive),
 	Layer.provide(DatabaseLive),
 	Layer.provide(NodeServerLive),
