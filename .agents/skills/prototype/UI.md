@@ -1,6 +1,6 @@
 # UI Prototype
 
-Generate **several radically different UI variations** on a single route, switchable from a floating bottom bar. The user flips between variants in the browser, picks one (or steals bits from each), then throws the rest away.
+Generate **several radically different UI variations** on a single route, switchable from a floating bottom bar. The user flips between variants in the browser, picks one (or steals bits from each), and keeps the complete comparison as evidence outside the main branch when it is useful.
 
 If the question is about logic/state rather than what something looks like — wrong branch. Use [LOGIC.md](LOGIC.md).
 
@@ -95,18 +95,20 @@ Put the switcher in a single shared component so both sub-shapes can reuse it. L
 
 Surface the URL (and the `?variant=` keys). The user will flip through whenever they get to it. The interesting feedback is usually **"I want the header from B with the sidebar from C"** — that's the actual design they want.
 
-### 6. Capture the answer and clean up
+### 6. Capture the answer and evidence, then clean up
 
-Once a variant has won, write down which one and why (commit message, ADR, issue, or a `NOTES.md` next to the prototype if running AFK and the user hasn't responded yet). Then:
+Once a variant has won, record which direction won and why, then follow the capture order in [SKILL.md](SKILL.md). Snapshot the complete runnable set of variants and the switcher before deleting, combining, or productionizing any of them. The evidence commit keeps the original comparison outside the main branch and must never be merged into it.
 
-- **Sub-shape A** — delete the losing variants and the switcher; fold the winner into the existing page.
-- **Sub-shape B** — promote the winning variant to a real route, delete the throwaway route and the switcher.
+After the snapshot:
 
-Don't leave variant components or the switcher lying around. They rot fast and confuse the next reader.
+- **Sub-shape A** — reimplement the validated direction in the existing page; remove the losing variants and switcher from the main branch.
+- **Sub-shape B** — build the validated direction as a production route; remove the prototype route, losing variants, and switcher from the main branch.
+
+Don't leave prototype variants or the switcher on the main branch. They rot fast and confuse the next reader.
 
 ## Anti-patterns
 
 - **Variants that differ only in colour or copy.** That's a tweak, not a prototype. Real variants disagree about structure.
 - **Sharing too much code between variants.** A shared `<Header>` is fine; a shared `<Layout>` defeats the point. Each variant should be free to throw out the layout.
 - **Wiring variants to real mutations.** Read-only prototypes are fine. If a variant needs to mutate, point it at a stub — the question is "what should this look like", not "does the backend work".
-- **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Rewrite it properly when you fold it in.
+- **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Reimplement the validated direction with production tests, error handling, accessibility, security, and project conventions.

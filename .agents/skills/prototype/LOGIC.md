@@ -36,7 +36,7 @@ The right shape depends on the question:
 
 Pick whichever shape best fits the question being asked, *not* whichever is easiest to wire to a TUI. Keep it pure: no I/O, no terminal code, no `console.log` for control flow. The TUI imports it and calls into it; nothing flows the other direction.
 
-This is what makes the prototype useful past its own lifetime. When the question has been answered, rewrite the validated reducer, machine, or function set as production code with appropriate tests. Delete the prototype and its TUI shell.
+This separation makes the prototype useful past its own lifetime. When the question has been answered, preserve the complete logic module and TUI together in the evidence snapshot before cleanup. Then reimplement the validated reducer, machine, or function set as production code with appropriate tests; the design survives, but the prototype code does not move directly into production.
 
 ### 4. Build the smallest TUI that exposes the state
 
@@ -66,9 +66,9 @@ If the host project has no task runner, just put the command at the top of the p
 
 Give the user the run command. They'll drive it themselves; the interesting moments are when they say "wait, that shouldn't be possible" or "huh, I assumed X would be different" — those are the bugs in the _idea_, which is the whole point. If they want new actions added, add them. Prototypes evolve.
 
-### 7. Capture the answer
+### 7. Capture the answer and evidence
 
-When the prototype has done its job, the answer to the question is the only thing worth keeping. If the user is around, ask what it taught them. If not, leave a `NOTES.md` next to the prototype so the answer can be filled in (or filled in by you, if you've watched the session) before the prototype gets deleted.
+Once the prototype has answered its question, follow the capture order in [SKILL.md](SKILL.md). Record the question and verdict, then snapshot the complete runnable logic module and TUI before changing or removing either one. The evidence commit keeps the experiment reproducible outside the main branch; the implementation branch gets a production reimplementation of the validated design and no TUI shell.
 
 ## Anti-patterns
 
