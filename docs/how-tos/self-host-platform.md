@@ -5,7 +5,7 @@ Skopeo publishes the Platform API and Web Application as a versioned pair:
 - `ghcr.io/endalk200/skopeo-api`
 - `ghcr.io/endalk200/skopeo-web`
 
-Use the same exact Platform Release version for both images. The CLI has an
+Use the same Platform Release version for both images. The CLI has an
 independent npm release lifecycle and does not need to match this version.
 
 ## Choose a channel and pin
