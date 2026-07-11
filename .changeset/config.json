@@ -4,12 +4,17 @@
 	"baseBranch": "main",
 	"changelog": "@changesets/cli/changelog",
 	"commit": false,
-	"fixed": [],
+	"fixed": [["@skopeo/api", "@skopeo/web"]],
 	"ignore": [
 		"@skopeo/biome-config",
 		"@skopeo/config",
+		"@skopeo/platform-release",
 		"@skopeo/typescript-config"
 	],
 	"linked": [],
+	"privatePackages": {
+		"tag": false,
+		"version": true
+	},
 	"updateInternalDependencies": "patch"
 }
