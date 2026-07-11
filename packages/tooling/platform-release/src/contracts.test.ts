@@ -228,7 +228,7 @@ fi
 				mockDocker,
 				`#!/usr/bin/env bash
 set -euo pipefail
-echo 'ERROR: ghcr.io/example/app:missing: release not found' >&2
+echo 'release not found' >&2
 exit 1
 `,
 			);
@@ -247,6 +247,21 @@ exit 1
 			).toBe("");
 			expect(() =>
 				execFileSync("bash", [script("inspect-platform-image.sh"), "ghcr.io/example/app:missing"], options),
+			).toThrow();
+			writeFileSync(
+				mockDocker,
+				`#!/usr/bin/env bash
+set -euo pipefail
+echo 'authentication failed: release not found while contacting proxy' >&2
+exit 1
+`,
+			);
+			expect(() =>
+				execFileSync(
+					"bash",
+					[script("inspect-platform-image.sh"), "--optional", "ghcr.io/example/app:missing"],
+					options,
+				),
 			).toThrow();
 		} finally {
 			rmSync(fixture, { force: true, recursive: true });
