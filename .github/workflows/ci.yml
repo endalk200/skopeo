@@ -713,11 +713,19 @@ jobs:
                 fi
                 release_sha="${api_release_sha}"
               fi
-              gh release create "${tag}" \
-                --draft \
-                --target "${release_sha}" \
-                --title "Skopeo Platform v${api_version}" \
-                --notes "Platform Release publication is in progress."
+              if existing_tag_sha="$(git rev-parse --verify --quiet "refs/tags/${tag}^{commit}")"; then
+                if [[ "${existing_tag_sha}" != "${release_sha}" ]]; then
+                  echo "Existing ${tag} points to ${existing_tag_sha}, not ${release_sha}."
+                  exit 1
+                fi
+              fi
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+                --field draft=true \
+                --raw-field tag_name="${tag}" \
+                --raw-field target_commitish="${release_sha}" \
+                --raw-field name="Skopeo Platform v${api_version}" \
+                --raw-field body="Platform Release publication is in progress." \
+                --silent
             fi
           fi
           printf '%s\n' "${release_outputs}" >> "${GITHUB_OUTPUT}"
