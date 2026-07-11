@@ -713,11 +713,13 @@ jobs:
                 fi
                 release_sha="${api_release_sha}"
               fi
-              gh release create "${tag}" \
-                --draft \
-                --target "${release_sha}" \
-                --title "Skopeo Platform v${api_version}" \
-                --notes "Platform Release publication is in progress."
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+                --field draft=true \
+                --raw-field tag_name="${tag}" \
+                --raw-field target_commitish="${release_sha}" \
+                --raw-field name="Skopeo Platform v${api_version}" \
+                --raw-field body="Platform Release publication is in progress." \
+                --silent
             fi
           fi
           printf '%s\n' "${release_outputs}" >> "${GITHUB_OUTPUT}"
