@@ -11,7 +11,7 @@ fi
 reference="${1:?Pass an image reference to inspect}"
 
 if ! inspection="$(docker buildx imagetools inspect "${reference}" 2>&1)"; then
-	if [[ "${optional}" == true ]] && grep -Eiq '(: not found|manifest unknown)' <<< "${inspection}"; then
+	if [[ "${optional}" == true ]] && grep -Eiq '(: not found|manifest unknown|release not found)' <<< "${inspection}"; then
 		exit 0
 	fi
 	printf '%s\n' "${inspection}" >&2
