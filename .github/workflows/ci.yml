@@ -499,29 +499,53 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build final native image for scanning
+      - name: Validate vulnerability exception policy
+        run: |
+          bun run --cwd packages/tooling/platform-release \
+            platform:validate-trivy-ignore -- "${GITHUB_WORKSPACE}/.trivyignore.yaml"
+
+      - name: Build and push final variant by digest
         env:
           APP: ${{ matrix.app }}
           ARCH: ${{ matrix.arch }}
           PLATFORM: ${{ matrix.platform }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          metadata="${RUNNER_TEMP}/scan-metadata-${APP}-${ARCH}.json"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${APP}"
+          metadata="${RUNNER_TEMP}/metadata-${APP}-${ARCH}.json"
           docker buildx build \
             --file "apps/${APP}/Dockerfile" \
             --platform "${PLATFORM}" \
             --build-arg "VERSION=${VERSION}" \
             --build-arg "REVISION=${GITHUB_SHA}" \
             --cache-from "type=gha,scope=container-${APP}-${ARCH}" \
-            --load \
+            --cache-to "type=gha,mode=max,scope=container-${APP}-${ARCH}" \
+            --attest type=sbom \
+            --attest type=provenance,mode=max \
+            --output "type=image,name=${image},push-by-digest=true,name-canonical=true,push=true" \
             --metadata-file "${metadata}" \
-            --tag "skopeo-${APP}:publish-${ARCH}" \
             .
+          jq --raw-output '.["containerimage.digest"]' "${metadata}" > "digest-${APP}-${ARCH}.txt"
 
-      - name: Validate vulnerability exception policy
+      - name: Load exact pushed variant for scanning
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          bun run --cwd packages/tooling/platform-release \
-            platform:validate-trivy-ignore -- "${GITHUB_WORKSPACE}/.trivyignore.yaml"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${APP}"
+          pushed_digest="$(cat "digest-${APP}-${ARCH}.txt")"
+          reference="${image}@${pushed_digest}"
+          docker pull "${reference}"
+          docker tag "${reference}" "skopeo-${APP}:publish-${ARCH}"
+          scanned_config_digest="$(docker image inspect --format '{{.Id}}' "skopeo-${APP}:publish-${ARCH}")"
+          pushed_config_digest="$(
+            bash scripts/inspect-platform-image-config.sh "${reference}" "${PLATFORM}"
+          )"
+          if [[ "${scanned_config_digest}" != "${pushed_config_digest}" ]]; then
+            echo "The loaded image config ${scanned_config_digest} does not match the pushed image config ${pushed_config_digest}."
+            exit 1
+          fi
 
       - name: Scan final native image
         env:
@@ -558,38 +582,6 @@ jobs:
           report="trivy-publish-${APP}-${ARCH}.json"
           bun run --cwd packages/tooling/platform-release \
             platform:enforce-trivy-report -- "${GITHUB_WORKSPACE}/${report}"
-
-      - name: Push final variant by digest
-        env:
-          APP: ${{ matrix.app }}
-          ARCH: ${{ matrix.arch }}
-          PLATFORM: ${{ matrix.platform }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${APP}"
-          metadata="${RUNNER_TEMP}/metadata-${APP}-${ARCH}.json"
-          docker buildx build \
-            --file "apps/${APP}/Dockerfile" \
-            --platform "${PLATFORM}" \
-            --build-arg "VERSION=${VERSION}" \
-            --build-arg "REVISION=${GITHUB_SHA}" \
-            --cache-from "type=gha,scope=container-${APP}-${ARCH}" \
-            --cache-to "type=gha,mode=max,scope=container-${APP}-${ARCH}" \
-            --attest type=sbom \
-            --attest type=provenance,mode=max \
-            --output "type=image,name=${image},push-by-digest=true,name-canonical=true,push=true" \
-            --metadata-file "${metadata}" \
-            .
-          jq --raw-output '.["containerimage.digest"]' "${metadata}" > "digest-${APP}-${ARCH}.txt"
-          scan_config_digest="$(jq --raw-output '.["containerimage.config.digest"]' "${RUNNER_TEMP}/scan-metadata-${APP}-${ARCH}.json")"
-          pushed_digest="$(cat "digest-${APP}-${ARCH}.txt")"
-          publish_config_digest="$(
-            bash scripts/inspect-platform-image-config.sh "${image}@${pushed_digest}" "${PLATFORM}"
-          )"
-          if [[ "${scan_config_digest}" == null || "${scan_config_digest}" != "${publish_config_digest}" ]]; then
-            echo "The pushed image config ${publish_config_digest} does not match the Trivy-scanned image config ${scan_config_digest}."
-            exit 1
-          fi
 
       - name: Upload image digest
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
