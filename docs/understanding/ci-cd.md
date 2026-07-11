@@ -60,10 +60,12 @@ Pull requests build, smoke-test, and scan both final application images on
 native AMD64 and ARM64 runners without registry write permission. After every
 image variant passes, CI also starts the checked-in Compose bundle and verifies
 routing, migration idempotence, and that a failed migration blocks API startup.
-On `main`, only after the complete Quality Gate succeeds, a job-scoped publisher rebuilds and scans the
-same four variants, pushes them by digest, assembles multi-platform indexes,
-creates GitHub attestations, and only then promotes `edge` and the immutable
-`sha-<commit>` references for both packages.
+On `main`, only after the complete Quality Gate succeeds, a job-scoped publisher
+builds each final variant once and pushes it without a discoverable tag. The
+native runner pulls that exact immutable digest back and scans it before making
+the digest eligible for pair assembly. After all four exact variants pass, CI
+assembles multi-platform indexes, creates GitHub attestations, and only then
+promotes `edge` and the immutable `sha-<commit>` references for both packages.
 
 When a Changesets release PR changes both application versions, the same run
 also creates write-once exact SemVer references, moves stable-only `latest`, and
