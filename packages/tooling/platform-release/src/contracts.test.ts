@@ -220,6 +220,54 @@ fi
 		}
 	});
 
+	it("treats GHCR's missing-tag response as an optional image miss", () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-image-miss-"));
+		const mockDocker = path.join(fixture, "docker");
+		try {
+			writeFileSync(
+				mockDocker,
+				`#!/usr/bin/env bash
+set -euo pipefail
+echo 'release not found' >&2
+exit 1
+`,
+			);
+			chmodSync(mockDocker, 0o755);
+			const options = {
+				cwd: repositoryRoot,
+				env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` },
+				encoding: "utf8" as const,
+			};
+			expect(
+				execFileSync(
+					"bash",
+					[script("inspect-platform-image.sh"), "--optional", "ghcr.io/example/app:missing"],
+					options,
+				),
+			).toBe("");
+			expect(() =>
+				execFileSync("bash", [script("inspect-platform-image.sh"), "ghcr.io/example/app:missing"], options),
+			).toThrow();
+			writeFileSync(
+				mockDocker,
+				`#!/usr/bin/env bash
+set -euo pipefail
+echo 'authentication failed: release not found while contacting proxy' >&2
+exit 1
+`,
+			);
+			expect(() =>
+				execFileSync(
+					"bash",
+					[script("inspect-platform-image.sh"), "--optional", "ghcr.io/example/app:missing"],
+					options,
+				),
+			).toThrow();
+		} finally {
+			rmSync(fixture, { force: true, recursive: true });
+		}
+	});
+
 	it("finds only an open release pull request", () => {
 		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-release-pr-"));
 		const mockGh = path.join(fixture, "gh");
