@@ -182,6 +182,78 @@ fi
 		}
 	});
 
+	it("resolves a native config digest through an attested image index", () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-image-config-"));
+		const mockDocker = path.join(fixture, "docker");
+		const imageDigest = `sha256:${"a".repeat(64)}`;
+		const attestationDigest = `sha256:${"b".repeat(64)}`;
+		const configDigest = `sha256:${"c".repeat(64)}`;
+		try {
+			writeFileSync(
+				mockDocker,
+				`#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == *"${imageDigest}"* ]]; then
+	printf '{"config":{"digest":"${configDigest}"}}'
+else
+	printf '{"manifests":[{"digest":"${imageDigest}","platform":{"os":"linux","architecture":"amd64"}},{"digest":"${attestationDigest}","platform":{"os":"unknown","architecture":"unknown"}}]}'
+fi
+`,
+			);
+			chmodSync(mockDocker, 0o755);
+			const output = execFileSync(
+				"bash",
+				[
+					script("inspect-platform-image-config.sh"),
+					`ghcr.io/example/app@sha256:${"d".repeat(64)}`,
+					"linux/amd64",
+				],
+				{
+					cwd: repositoryRoot,
+					env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` },
+					encoding: "utf8",
+				},
+			);
+			expect(output).toBe(`${configDigest}\n`);
+		} finally {
+			rmSync(fixture, { force: true, recursive: true });
+		}
+	});
+
+	it("finds only an open release pull request", () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-release-pr-"));
+		const mockGh = path.join(fixture, "gh");
+		try {
+			writeFileSync(
+				mockGh,
+				`#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == *"--head changeset-release/main"* ]]
+[[ "$*" == *"--base main"* ]]
+[[ "$*" == *"--state open"* ]]
+printf '[
+	{"number":40,"baseRefName":"main","headRefName":"changeset-release/main-fix","headRepositoryOwner":{"login":"endalk200"},"headRepository":{"name":"skopeo"}},
+	{"number":41,"baseRefName":"main","headRefName":"changeset-release/main","headRepositoryOwner":{"login":"fork-owner"},"headRepository":{"name":"skopeo"}},
+	{"number":42,"baseRefName":"main","headRefName":"changeset-release/main","headRepositoryOwner":{"login":"endalk200"},"headRepository":{"name":"skopeo"}}
+]\n'
+`,
+			);
+			chmodSync(mockGh, 0o755);
+			const output = execFileSync(
+				"bash",
+				[script("find-open-release-pr.sh"), "changeset-release/main", "main", "endalk200", "skopeo"],
+				{
+					cwd: repositoryRoot,
+					env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` },
+					encoding: "utf8",
+				},
+			);
+			expect(output).toBe("42\n");
+		} finally {
+			rmSync(fixture, { force: true, recursive: true });
+		}
+	});
+
 	it("allows reportable findings and blocks high or critical vulnerabilities", () => {
 		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-trivy-report-"));
 		const reportFile = path.join(fixture, "trivy.json");
