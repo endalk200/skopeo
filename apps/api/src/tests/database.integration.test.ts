@@ -1,6 +1,7 @@
 import { assert, it, vi } from "@effect/vitest";
+import { sql } from "drizzle-orm";
 import { Effect } from "effect";
-import { DatabaseHealth } from "../infra/db/database.js";
+import { Database, DatabaseHealth } from "../infra/db/database.js";
 import { runDatabaseMigrations } from "../infra/db/migrations.js";
 import { ContainerDatabaseLive, PgContainer } from "./support/pg-container.js";
 
@@ -27,6 +28,23 @@ it.effect(
 
 it.effect(
 	"reruns the one-shot migration without reapplying completed migrations",
-	() => runDatabaseMigrations.pipe(Effect.andThen(runDatabaseMigrations), Effect.provide(ContainerDatabaseLive)),
+	() =>
+		Effect.gen(function* () {
+			const database = yield* Database;
+			const readMigrationCount = Effect.map(
+				database.execute<{ count: number }>(
+					sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
+				),
+				(rows) => rows[0]?.count,
+			);
+			const before = yield* readMigrationCount;
+			yield* runDatabaseMigrations;
+			const afterFirstRun = yield* readMigrationCount;
+			yield* runDatabaseMigrations;
+			const afterSecondRun = yield* readMigrationCount;
+
+			assert.strictEqual(afterFirstRun, before);
+			assert.strictEqual(afterSecondRun, afterFirstRun);
+		}).pipe(Effect.provide(ContainerDatabaseLive)),
 	120_000,
 );
