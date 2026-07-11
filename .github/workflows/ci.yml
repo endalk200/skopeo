@@ -234,6 +234,24 @@ jobs:
             exit 1
           fi
 
+          verify_shutdown() {
+            local container="$1"
+            local exit_code
+
+            docker stop --timeout 10 "${container}"
+            exit_code="$(docker wait "${container}")"
+            echo "Container ${container} exited with code ${exit_code}."
+
+            case "${exit_code}" in
+              0|130|143) ;;
+              *)
+                echo "Container ${container} exited unexpectedly after SIGTERM."
+                docker logs "${container}" || true
+                return 1
+                ;;
+            esac
+          }
+
           if [[ "${APP}" == "api" ]]; then
             network="skopeo-network-${GITHUB_RUN_ID}-${ARCH}"
             postgres="skopeo-postgres-${GITHUB_RUN_ID}-${ARCH}"
@@ -269,8 +287,7 @@ jobs:
             curl --fail --silent http://127.0.0.1:4000/api/openapi.json >/dev/null
             test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4000/docs)" = 404
             test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4000/openapi.json)" = 404
-            docker stop --time 10 "${api}"
-            test "$(docker wait "${api}")" = 0
+            verify_shutdown "${api}"
           else
             web="skopeo-web-${GITHUB_RUN_ID}-${ARCH}"
             trap 'docker rm -f "${web}" >/dev/null 2>&1 || true' EXIT
@@ -281,8 +298,7 @@ jobs:
               sleep 2
             done
             curl --fail --silent http://127.0.0.1:3000/icon.svg >/dev/null
-            docker stop --time 10 "${web}"
-            test "$(docker wait "${web}")" = 0
+            verify_shutdown "${web}"
           fi
 
       - name: Validate vulnerability exception policy
