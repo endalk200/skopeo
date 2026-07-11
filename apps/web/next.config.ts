@@ -6,8 +6,10 @@ const repositoryRoot = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"../..",
 );
+const buildId = process.env.SKOPEO_BUILD_ID;
 
 const nextConfig: NextConfig = {
+	...(buildId ? { generateBuildId: async () => buildId } : {}),
 	output: "standalone",
 	outputFileTracingRoot: repositoryRoot,
 	reactStrictMode: true,

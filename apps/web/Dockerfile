@@ -8,6 +8,9 @@ COPY . .
 RUN turbo prune @skopeo/web --docker
 
 FROM oven/bun:1.3.6-slim@sha256:9d20d1b535596c4a021ba2087d2d303c4098e96be15f47775729cf7a259bb41e AS build
+ARG REVISION
+RUN test -n "${REVISION}"
+ENV SKOPEO_BUILD_ID=${REVISION}
 WORKDIR /repo
 COPY --from=pruner /repo/out/json/ .
 COPY --from=pruner /repo/out/bun.lock ./bun.lock
