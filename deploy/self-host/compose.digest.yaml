@@ -1,0 +1,9 @@
+services:
+  web:
+    image: "ghcr.io/endalk200/skopeo-web@${SKOPEO_WEB_DIGEST:?Set SKOPEO_WEB_DIGEST to the release digest}"
+
+  api:
+    image: "ghcr.io/endalk200/skopeo-api@${SKOPEO_API_DIGEST:?Set SKOPEO_API_DIGEST to the release digest}"
+
+  migrate:
+    image: "ghcr.io/endalk200/skopeo-api@${SKOPEO_API_DIGEST:?Set SKOPEO_API_DIGEST to the release digest}"
