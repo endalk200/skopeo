@@ -1,0 +1,85 @@
+name: skopeo
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    environment:
+      SKOPEO_HOST: ${SKOPEO_HOST:?Set SKOPEO_HOST to the public hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/endalk200/skopeo-web:${SKOPEO_VERSION:?Set SKOPEO_VERSION to an exact Platform Release}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  api:
+    image: ghcr.io/endalk200/skopeo-api:${SKOPEO_VERSION:?Set SKOPEO_VERSION to an exact Platform Release}
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?Set DATABASE_URL for the bundled PostgreSQL service}
+      - OTLP_BASE_URL
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4000/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  migrate:
+    image: ghcr.io/endalk200/skopeo-api:${SKOPEO_VERSION:?Set SKOPEO_VERSION to an exact Platform Release}
+    restart: "no"
+    command: apps/api/dist/migrate.js
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL for the bundled PostgreSQL service}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: skopeo
+      POSTGRES_USER: skopeo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a unique PostgreSQL password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skopeo -d skopeo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  caddy_config:
+  caddy_data:
+  postgres_data:
