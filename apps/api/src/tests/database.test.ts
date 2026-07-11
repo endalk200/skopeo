@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Layer, Redacted } from "effect";
+import { Effect, Layer, Option, Redacted } from "effect";
 import { AppConfig } from "../config/app-config.js";
 import { DatabaseHealth, DatabaseHealthLive, DatabaseLive, DatabaseUnavailable } from "../infra/db/database.js";
 
@@ -7,7 +7,7 @@ const UnavailableDatabaseConfig = Layer.succeed(AppConfig)(
 	AppConfig.of({
 		databaseUrl: Redacted.make("postgres://postgres:postgres@127.0.0.1:1/skopeo"),
 		host: "127.0.0.1",
-		otlpBaseUrl: "http://127.0.0.1:27686",
+		otlpBaseUrl: Option.none(),
 		port: 4000,
 	}),
 );

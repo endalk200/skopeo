@@ -12,8 +12,8 @@ import { HealthRoutesLive } from "./health.js";
 import { RequestBodyLimitMiddlewareLive, RequestBodySizeLive } from "./request-limits.js";
 
 const ApiRoutesLive = Layer.mergeAll(
-	HttpApiBuilder.layer(SkopeoApi, { openapiPath: "/openapi.json" }),
-	HttpApiSwagger.layer(SkopeoApi, { path: "/docs" }),
+	HttpApiBuilder.layer(SkopeoApi, { openapiPath: "/api/openapi.json" }),
+	HttpApiSwagger.layer(SkopeoApi, { path: "/api/docs" }),
 	HealthRoutesLive,
 ).pipe(Layer.provide(RequestBodyLimitMiddlewareLive));
 

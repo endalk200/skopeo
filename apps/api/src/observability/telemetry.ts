@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { FetchHttpClient } from "effect/unstable/http";
 import { Otlp } from "effect/unstable/observability";
 import { AppConfig } from "../config/app-config.js";
@@ -10,9 +10,14 @@ import { AppConfig } from "../config/app-config.js";
  */
 export const TelemetryLive = Layer.unwrap(
 	Effect.map(AppConfig, (config) =>
-		Otlp.layerJson({
-			baseUrl: config.otlpBaseUrl,
-			resource: { serviceName: "skopeo-api" },
+		Option.match(config.otlpBaseUrl, {
+			onNone: () => Layer.empty,
+			onSome: (baseUrl) =>
+				Otlp.layerJson({
+					baseUrl,
+					loggerMergeWithExisting: true,
+					resource: { serviceName: "skopeo-api" },
+				}).pipe(Layer.provide(FetchHttpClient.layer)),
 		}),
 	),
-).pipe(Layer.provide(FetchHttpClient.layer));
+);

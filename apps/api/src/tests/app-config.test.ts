@@ -1,8 +1,22 @@
 import { assert, describe, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Layer } from "effect";
-import { AppConfigLive } from "../config/app-config.js";
+import { ConfigProvider, Effect, Layer, Option } from "effect";
+import { AppConfig, AppConfigLive } from "../config/app-config.js";
 
 describe("AppConfig", () => {
+	it.effect("starts without an OTLP collector", () =>
+		Effect.gen(function* () {
+			const config = yield* AppConfig;
+
+			assert.isTrue(Option.isNone(config.otlpBaseUrl));
+		}).pipe(
+			Effect.provide(AppConfigLive),
+			Effect.provideService(
+				ConfigProvider.ConfigProvider,
+				ConfigProvider.fromUnknown({ DATABASE_URL: "postgres://skopeo:secret@postgres:5432/skopeo" }),
+			),
+		),
+	);
+
 	it.effect("explains how to set DATABASE_URL when it is missing", () =>
 		Effect.gen(function* () {
 			const error = yield* Effect.flip(Layer.build(AppConfigLive)).pipe(
