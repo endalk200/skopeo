@@ -3,7 +3,7 @@ import { spanNameForRequest } from "../observability/span-names.js";
 
 describe("HTTP span names", () => {
 	it("drops query strings from known routes", () => {
-		assert.strictEqual(spanNameForRequest("GET", "/openapi.json?cursor=secret"), "GET /openapi.json");
+		assert.strictEqual(spanNameForRequest("GET", "/api/openapi.json?cursor=secret"), "GET /api/openapi.json");
 	});
 
 	it("uses a bounded fallback for unmatched paths", () => {

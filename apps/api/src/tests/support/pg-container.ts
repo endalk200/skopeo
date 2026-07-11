@@ -1,9 +1,8 @@
-import { fileURLToPath } from "node:url";
 import { PgClient } from "@effect/sql-pg";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
-import { migrate } from "drizzle-orm/effect-postgres/migrator";
 import { Context, Effect, Layer, Redacted } from "effect";
-import { Database, DatabaseHealthLive, DatabaseLayer } from "../../infra/db/database.js";
+import { DatabaseHealthLive, DatabaseLayer } from "../../infra/db/database.js";
+import { runDatabaseMigrations } from "../../infra/db/migrations.js";
 
 export class PgContainer extends Context.Service<PgContainer, StartedPostgreSqlContainer>()(
 	"skopeo/api/test/PgContainer",
@@ -21,11 +20,7 @@ const PgClientTestLive = Layer.unwrap(
 	Effect.map(PgContainer, (container) => PgClient.layer({ url: Redacted.make(container.getConnectionUri()) })),
 );
 
-const migrationsFolder = fileURLToPath(new URL("../../../drizzle", import.meta.url));
-
-const MigrationsLive = Layer.effectDiscard(
-	Effect.flatMap(Database, (database) => migrate(database, { migrationsFolder })),
-);
+const MigrationsLive = Layer.effectDiscard(runDatabaseMigrations);
 
 /**
  * A real Postgres database in a throwaway container, with the production

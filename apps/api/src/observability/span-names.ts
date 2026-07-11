@@ -1,7 +1,7 @@
 import { Layer } from "effect";
 import { HttpMiddleware } from "effect/unstable/http";
 
-const staticRoutes = new Set(["/docs", "/healthz", "/openapi.json", "/readyz"]);
+const staticRoutes = new Set(["/api/docs", "/api/openapi.json", "/healthz", "/readyz"]);
 
 /**
  * Maps only known request shapes to route names. The fallback never contains

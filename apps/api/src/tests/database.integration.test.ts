@@ -1,6 +1,7 @@
 import { assert, it, vi } from "@effect/vitest";
 import { Effect } from "effect";
 import { DatabaseHealth } from "../infra/db/database.js";
+import { runDatabaseMigrations } from "../infra/db/migrations.js";
 import { ContainerDatabaseLive, PgContainer } from "./support/pg-container.js";
 
 it.effect(
@@ -21,5 +22,11 @@ it.effect(
 
 			assert.strictEqual(stopSpy?.mock.calls.length, 1);
 		}),
+	120_000,
+);
+
+it.effect(
+	"reruns the one-shot migration without reapplying completed migrations",
+	() => runDatabaseMigrations.pipe(Effect.andThen(runDatabaseMigrations), Effect.provide(ContainerDatabaseLive)),
 	120_000,
 );
