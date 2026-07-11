@@ -12,7 +12,9 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A main run may be publishing a compatible pair; never interrupt it between
+  # package promotions. Pull request runs use distinct refs and remain isolated.
+  cancel-in-progress: false
 
 jobs:
   format:
@@ -160,6 +162,208 @@ jobs:
             packages/**/dist/**
             !apps/web/.next/cache/**
 
+  containers:
+    name: Container / ${{ matrix.app }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: api
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - app: api
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+          - app: web
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - app: web
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build native image
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker buildx build \
+            --file "apps/${APP}/Dockerfile" \
+            --platform "${PLATFORM}" \
+            --build-arg "VERSION=ci-${GITHUB_SHA}" \
+            --build-arg "REVISION=${GITHUB_SHA}" \
+            --cache-from "type=gha,scope=container-${APP}-${ARCH}" \
+            --cache-to "type=gha,mode=max,scope=container-${APP}-${ARCH}" \
+            --load \
+            --tag "skopeo-${APP}:ci-${ARCH}" \
+            .
+
+      - name: Verify runtime and smoke test
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          POSTGRES_IMAGE: postgres:17.6@sha256:00bc86618629af00d2937fdc5a5d63db3ff8450acf52f0636ec813c7f4902929
+        run: |
+          set -euo pipefail
+          image="skopeo-${APP}:ci-${ARCH}"
+          runtime_user="$(docker image inspect --format '{{.Config.User}}' "${image}")"
+          runtime_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image}")"
+
+          if [[ -z "${runtime_user}" || "${runtime_user}" == "0" || "${runtime_user}" == "root" ]]; then
+            echo "Runtime image must declare a non-root user."
+            exit 1
+          fi
+
+          if [[ "${runtime_platform}" != "linux/${ARCH}" ]]; then
+            echo "Expected linux/${ARCH}, got ${runtime_platform}."
+            exit 1
+          fi
+
+          if [[ "${APP}" == "api" ]]; then
+            network="skopeo-network-${GITHUB_RUN_ID}-${ARCH}"
+            postgres="skopeo-postgres-${GITHUB_RUN_ID}-${ARCH}"
+            api="skopeo-api-${GITHUB_RUN_ID}-${ARCH}"
+            cleanup() {
+              docker rm -f "${api}" "${postgres}" >/dev/null 2>&1 || true
+              docker network rm "${network}" >/dev/null 2>&1 || true
+            }
+            trap cleanup EXIT
+            docker network create "${network}"
+            docker run -d --name "${postgres}" --network "${network}" \
+              -e POSTGRES_DB=skopeo -e POSTGRES_USER=skopeo -e POSTGRES_PASSWORD=secret \
+              "${POSTGRES_IMAGE}"
+            for attempt in {1..30}; do
+              if docker exec "${postgres}" pg_isready -U skopeo -d skopeo; then break; fi
+              if [[ "${attempt}" == 30 ]]; then exit 1; fi
+              sleep 2
+            done
+            database_url="postgres://skopeo:secret@${postgres}:5432/skopeo"
+            docker run --rm --network "${network}" -e "DATABASE_URL=${database_url}" \
+              "${image}" apps/api/dist/migrate.js
+            docker run --rm --network "${network}" -e "DATABASE_URL=${database_url}" \
+              "${image}" apps/api/dist/migrate.js
+            docker run -d --name "${api}" --network "${network}" -p 4000:4000 \
+              -e "DATABASE_URL=${database_url}" "${image}"
+            for attempt in {1..30}; do
+              if curl --fail --silent http://127.0.0.1:4000/readyz >/dev/null; then break; fi
+              if [[ "${attempt}" == 30 ]]; then docker logs "${api}"; exit 1; fi
+              sleep 2
+            done
+            curl --fail --silent http://127.0.0.1:4000/healthz >/dev/null
+            curl --fail --silent http://127.0.0.1:4000/api/docs >/dev/null
+            curl --fail --silent http://127.0.0.1:4000/api/openapi.json >/dev/null
+            test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4000/docs)" = 404
+            test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4000/openapi.json)" = 404
+            docker stop --time 10 "${api}"
+            test "$(docker wait "${api}")" = 0
+          else
+            web="skopeo-web-${GITHUB_RUN_ID}-${ARCH}"
+            trap 'docker rm -f "${web}" >/dev/null 2>&1 || true' EXIT
+            docker run -d --name "${web}" -p 3000:3000 "${image}"
+            for attempt in {1..30}; do
+              if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then break; fi
+              if [[ "${attempt}" == 30 ]]; then docker logs "${web}"; exit 1; fi
+              sleep 2
+            done
+            curl --fail --silent http://127.0.0.1:3000/icon.svg >/dev/null
+            docker stop --time 10 "${web}"
+            test "$(docker wait "${web}")" = 0
+          fi
+
+      - name: Validate vulnerability exception policy
+        run: |
+          bun run --cwd packages/tooling/platform-release \
+            platform:validate-trivy-ignore -- "${GITHUB_WORKSPACE}/.trivyignore.yaml"
+
+      - name: Create machine-readable vulnerability report
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+        run: |
+          mkdir -p "${RUNNER_TEMP}/trivy-cache"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${RUNNER_TEMP}/trivy-cache:/root/.cache/trivy" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            "${TRIVY_IMAGE}" image \
+              --scanners vuln \
+              --ignorefile /workspace/.trivyignore.yaml \
+              --format json \
+              --output "/workspace/trivy-${APP}-${ARCH}.json" \
+              "skopeo-${APP}:ci-${ARCH}"
+
+      - name: Upload vulnerability report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: trivy-${{ matrix.app }}-${{ matrix.arch }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: trivy-${{ matrix.app }}-${{ matrix.arch }}.json
+
+      - name: Enforce vulnerability gate
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          report="trivy-${APP}-${ARCH}.json"
+          bun run --cwd packages/tooling/platform-release \
+            platform:enforce-trivy-report -- "${GITHUB_WORKSPACE}/${report}"
+
+  compose:
+    name: Self-host Compose
+    needs: containers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
+
+      - name: Build local application pair
+        run: |
+          for app in api web; do
+            docker buildx build \
+              --file "apps/${app}/Dockerfile" \
+              --platform linux/amd64 \
+              --build-arg VERSION=ci-compose \
+              --build-arg "REVISION=${GITHUB_SHA}" \
+              --cache-from "type=gha,scope=container-${app}-amd64" \
+              --load \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}:ci-compose" \
+              .
+          done
+
+      - name: Smoke-test Compose and failed migration ordering
+        env:
+          COMPOSE_PROJECT_NAME: skopeo-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          DATABASE_URL: postgres://skopeo:secret@postgres:5432/skopeo
+          POSTGRES_PASSWORD: secret
+          SKOPEO_HOST: http://localhost
+          SKOPEO_VERSION: ci-compose
+        run: bun run test:compose
+
   quality:
     name: Quality Gate
     runs-on: ubuntu-latest
@@ -171,6 +375,8 @@ jobs:
       - check-types
       - test
       - build
+      - containers
+      - compose
     if: ${{ always() }}
     steps:
       - name: Verify split CI jobs
@@ -183,7 +389,9 @@ jobs:
             "Package Boundaries:${{ needs.boundaries.result }}" \
             "Check Types:${{ needs['check-types'].result }}" \
             "Test:${{ needs.test.result }}" \
-            "Build:${{ needs.build.result }}"
+            "Build:${{ needs.build.result }}" \
+            "Containers:${{ needs.containers.result }}" \
+            "Self-host Compose:${{ needs.compose.result }}"
           do
             name="${check%%:*}"
             result="${check#*:}"
@@ -200,3 +408,428 @@ jobs:
           fi
 
           echo "Quality Gate passed."
+
+  publish-platform-variants:
+    name: Publish variant / ${{ matrix.app }} / ${{ matrix.arch }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: quality
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: api
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - app: api
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+          - app: web
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - app: web
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
+
+      - name: Verify shared Platform Release version
+        id: version
+        run: |
+          api_version="$(jq --raw-output .version apps/api/package.json)"
+          web_version="$(jq --raw-output .version apps/web/package.json)"
+          bun run --cwd packages/tooling/platform-release --silent platform:resolve -- \
+            "${api_version}" "${web_version}" "${api_version}" "${web_version}" \
+            >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build final native image for scanning
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          metadata="${RUNNER_TEMP}/scan-metadata-${APP}-${ARCH}.json"
+          docker buildx build \
+            --file "apps/${APP}/Dockerfile" \
+            --platform "${PLATFORM}" \
+            --build-arg "VERSION=${VERSION}" \
+            --build-arg "REVISION=${GITHUB_SHA}" \
+            --cache-from "type=gha,scope=container-${APP}-${ARCH}" \
+            --load \
+            --metadata-file "${metadata}" \
+            --tag "skopeo-${APP}:publish-${ARCH}" \
+            .
+
+      - name: Validate vulnerability exception policy
+        run: |
+          bun run --cwd packages/tooling/platform-release \
+            platform:validate-trivy-ignore -- "${GITHUB_WORKSPACE}/.trivyignore.yaml"
+
+      - name: Scan final native image
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+        run: |
+          mkdir -p "${RUNNER_TEMP}/trivy-cache"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${RUNNER_TEMP}/trivy-cache:/root/.cache/trivy" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            "${TRIVY_IMAGE}" image \
+              --scanners vuln \
+              --ignorefile /workspace/.trivyignore.yaml \
+              --format json \
+              --output "/workspace/trivy-publish-${APP}-${ARCH}.json" \
+              "skopeo-${APP}:publish-${ARCH}"
+
+      - name: Upload publication vulnerability report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: trivy-publish-${{ matrix.app }}-${{ matrix.arch }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: trivy-publish-${{ matrix.app }}-${{ matrix.arch }}.json
+
+      - name: Enforce publication vulnerability gate
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          report="trivy-publish-${APP}-${ARCH}.json"
+          bun run --cwd packages/tooling/platform-release \
+            platform:enforce-trivy-report -- "${GITHUB_WORKSPACE}/${report}"
+
+      - name: Push final variant by digest
+        env:
+          APP: ${{ matrix.app }}
+          ARCH: ${{ matrix.arch }}
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${APP}"
+          metadata="${RUNNER_TEMP}/metadata-${APP}-${ARCH}.json"
+          docker buildx build \
+            --file "apps/${APP}/Dockerfile" \
+            --platform "${PLATFORM}" \
+            --build-arg "VERSION=${VERSION}" \
+            --build-arg "REVISION=${GITHUB_SHA}" \
+            --cache-from "type=gha,scope=container-${APP}-${ARCH}" \
+            --cache-to "type=gha,mode=max,scope=container-${APP}-${ARCH}" \
+            --attest type=sbom \
+            --attest type=provenance,mode=max \
+            --output "type=image,name=${image},push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file "${metadata}" \
+            .
+          jq --raw-output '.["containerimage.digest"]' "${metadata}" > "digest-${APP}-${ARCH}.txt"
+          scan_config_digest="$(jq --raw-output '.["containerimage.config.digest"]' "${RUNNER_TEMP}/scan-metadata-${APP}-${ARCH}.json")"
+          publish_config_digest="$(jq --raw-output '.["containerimage.config.digest"]' "${metadata}")"
+          if [[ "${scan_config_digest}" == null || "${scan_config_digest}" != "${publish_config_digest}" ]]; then
+            echo "The pushed image config does not match the Trivy-scanned image config."
+            exit 1
+          fi
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: platform-digest-${{ matrix.app }}-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+          path: digest-${{ matrix.app }}-${{ matrix.arch }}.txt
+
+  publish-platform:
+    name: Publish Platform Release
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: publish-platform-variants
+    outputs:
+      api_digest: ${{ steps.promote.outputs.api_digest }}
+      stable: ${{ steps.release.outputs.stable }}
+      version: ${{ steps.release.outputs.version }}
+      web_digest: ${{ steps.promote.outputs.web_digest }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+
+      - name: Set up Bun dependencies
+        uses: ./.github/actions/setup-bun-dependencies
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Download image digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: platform-digest-*
+          path: digests
+          merge-multiple: true
+
+      - name: Verify complete image pair
+        run: |
+          bun run --cwd packages/tooling/platform-release \
+            platform:validate-digests -- "${GITHUB_WORKSPACE}/digests"
+
+      - name: Resolve release channel
+        id: release
+        run: |
+          api_version="$(jq --raw-output .version apps/api/package.json)"
+          web_version="$(jq --raw-output .version apps/web/package.json)"
+          previous_api="$(git show HEAD^:apps/api/package.json 2>/dev/null | jq --raw-output .version || printf '%s' "${api_version}")"
+          previous_web="$(git show HEAD^:apps/web/package.json 2>/dev/null | jq --raw-output .version || printf '%s' "${web_version}")"
+          bun run --cwd packages/tooling/platform-release --silent platform:resolve -- \
+            "${api_version}" "${web_version}" "${previous_api}" "${previous_web}" \
+            >> "${GITHUB_OUTPUT}"
+
+      - name: Assemble candidate image indexes
+        id: candidate
+        env:
+          CANDIDATE: candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          for app in api web; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
+            amd64_digest="$(cat "digests/digest-${app}-amd64.txt")"
+            arm64_digest="$(cat "digests/digest-${app}-arm64.txt")"
+            docker buildx imagetools create \
+              --tag "${image}:${CANDIDATE}" \
+              "${image}@${amd64_digest}" \
+              "${image}@${arm64_digest}"
+            digest="$(bash scripts/inspect-platform-image.sh "${image}:${CANDIDATE}")"
+            echo "${app}_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          done
+
+      - name: Attest API image index
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/skopeo-api
+          subject-digest: ${{ steps.candidate.outputs.api_digest }}
+          push-to-registry: true
+
+      - name: Attest Web Application image index
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/skopeo-web
+          subject-digest: ${{ steps.candidate.outputs.web_digest }}
+          push-to-registry: true
+
+      - name: Promote compatible pair
+        id: promote
+        env:
+          API_DIGEST: ${{ steps.candidate.outputs.api_digest }}
+          WEB_DIGEST: ${{ steps.candidate.outputs.web_digest }}
+          STABLE: ${{ steps.release.outputs.stable }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          ensure_write_once_tag() {
+            image="$1"
+            tag="$2"
+            expected_digest="$3"
+            existing_digest="$(bash scripts/inspect-platform-image.sh --optional "${image}:${tag}")"
+            if [[ -n "${existing_digest}" ]]; then
+              if [[ "${existing_digest}" != "${expected_digest}" ]]; then
+                echo "Refusing to overwrite ${image}:${tag}: expected ${expected_digest}, found ${existing_digest}."
+                return 1
+              fi
+              return 0
+            fi
+            docker buildx imagetools create --tag "${image}:${tag}" "${image}@${expected_digest}"
+          }
+          old_api_edge="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge")"
+          old_web_edge="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge")"
+          old_api_latest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest")"
+          old_web_latest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest")"
+          rollback_channels() {
+            exit_code=$?
+            set +e
+            [[ -n "${old_api_edge}" ]] && docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${old_api_edge}"
+            [[ -n "${old_web_edge}" ]] && docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${old_web_edge}"
+            [[ -n "${old_api_latest}" ]] && docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${old_api_latest}"
+            [[ -n "${old_web_latest}" ]] && docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${old_web_latest}"
+            exit "${exit_code}"
+          }
+          trap rollback_channels ERR
+
+          for app in api web; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
+            digest_var="${app^^}_DIGEST"
+            digest="${!digest_var}"
+            ensure_write_once_tag "${image}" "sha-${GITHUB_SHA}" "${digest}"
+            echo "${app}_sha_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          done
+
+          api_sha_digest="$(bash scripts/inspect-platform-image.sh "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:sha-${GITHUB_SHA}")"
+          web_sha_digest="$(bash scripts/inspect-platform-image.sh "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:sha-${GITHUB_SHA}")"
+          docker buildx imagetools create \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge" \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${api_sha_digest}"
+          docker buildx imagetools create \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge" \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${web_sha_digest}"
+
+          if [[ "${STABLE}" == true ]]; then
+            for app in api web; do
+              image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
+              digest_var="${app^^}_DIGEST"
+              digest="${!digest_var}"
+              ensure_write_once_tag "${image}" "${VERSION}" "${digest}"
+              echo "${app}_digest=${digest}" >> "${GITHUB_OUTPUT}"
+            done
+
+            api_stable_digest="$(bash scripts/inspect-platform-image.sh "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:${VERSION}")"
+            web_stable_digest="$(bash scripts/inspect-platform-image.sh "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:${VERSION}")"
+            docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${api_stable_digest}"
+            docker buildx imagetools create \
+              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest" \
+              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${web_stable_digest}"
+          else
+            echo "api_digest=${api_sha_digest}" >> "${GITHUB_OUTPUT}"
+            echo "web_digest=${web_sha_digest}" >> "${GITHUB_OUTPUT}"
+          fi
+          trap - ERR
+
+  publish-platform-github-release:
+    name: Publish Platform GitHub Release
+    if: ${{ needs['publish-platform'].outputs.stable == 'true' }}
+    needs: publish-platform
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Create version-matched bundle
+        env:
+          VERSION: ${{ needs['publish-platform'].outputs.version }}
+        run: |
+          bundle="skopeo-platform-v${VERSION}"
+          mkdir "${bundle}"
+          cp deploy/self-host/compose.yaml deploy/self-host/compose.digest.yaml \
+            deploy/self-host/Caddyfile deploy/self-host/env.example "${bundle}/"
+          sed -i "s/^SKOPEO_VERSION=.*/SKOPEO_VERSION=${VERSION}/" "${bundle}/env.example"
+          tar -czf "${bundle}.tar.gz" "${bundle}"
+          sha256sum "${bundle}.tar.gz" > "${bundle}.tar.gz.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          API_DIGEST: ${{ needs['publish-platform'].outputs.api_digest }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs['publish-platform'].outputs.version }}
+          WEB_DIGEST: ${{ needs['publish-platform'].outputs.web_digest }}
+        run: |
+          tag="skopeo-platform-v${VERSION}"
+          notes="${RUNNER_TEMP}/platform-release-notes.md"
+          generated_notes="${RUNNER_TEMP}/generated-platform-release-notes.md"
+          previous_tag="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/skopeo-platform-v" \
+              --jq '.[].ref' \
+              | sed 's#^refs/tags/##' \
+              | grep -vx "${tag}" \
+              | sort -V \
+              | tail -n 1 \
+              || true
+          )"
+          generate_notes_args=(
+            --method POST
+            "repos/${GITHUB_REPOSITORY}/releases/generate-notes"
+            -f "tag_name=${tag}"
+            -f "target_commitish=${GITHUB_SHA}"
+            --jq .body
+          )
+          if [[ -n "${previous_tag}" ]]; then
+            generate_notes_args+=(-f "previous_tag_name=${previous_tag}")
+          fi
+          gh api "${generate_notes_args[@]}" > "${generated_notes}"
+          cat > "${notes}" <<EOF
+          ## Images
+
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${API_DIGEST}\`
+          - \`ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${WEB_DIGEST}\`
+
+          Verify both images with:
+
+          \`gh attestation verify oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${API_DIGEST} --repo ${GITHUB_REPOSITORY}\`
+
+          \`gh attestation verify oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${WEB_DIGEST} --repo ${GITHUB_REPOSITORY}\`
+
+          The attached bundle contains the version-matched Compose deployment and checksum.
+          EOF
+          printf '\n' >> "${notes}"
+          cat "${generated_notes}" >> "${notes}"
+          if ! gh release view "${tag}" >/dev/null 2>&1; then
+            gh release create "${tag}" \
+              --draft \
+              --target "${GITHUB_SHA}" \
+              --title "Skopeo Platform v${VERSION}" \
+              --notes-file "${notes}"
+          fi
+
+          gh release upload "${tag}" \
+            --clobber \
+            "${tag}.tar.gz" \
+            "${tag}.tar.gz.sha256"
+
+          release_json="$(gh release view "${tag}" --json assets)"
+          for asset in "${tag}.tar.gz" "${tag}.tar.gz.sha256"; do
+            if ! jq --exit-status --arg asset "${asset}" \
+              '.assets | any(.name == $asset and .size > 0)' \
+              <<< "${release_json}" >/dev/null; then
+              echo "GitHub Release ${tag} is missing the non-empty asset ${asset}."
+              exit 1
+            fi
+          done
+
+          gh release edit "${tag}" \
+            --draft=false \
+            --title "Skopeo Platform v${VERSION}" \
+            --notes-file "${notes}"

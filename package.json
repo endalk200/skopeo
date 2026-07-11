@@ -19,6 +19,7 @@
 		"lint:fix": "turbo run lint:fix",
 		"start": "turbo run start",
 		"test": "turbo run test",
+		"test:compose": "turbo run test:compose --filter=@skopeo/platform-release",
 		"test:integration": "turbo run test:integration",
 		"release:audit": "bun run scripts/audit-release.ts",
 		"release:smoke": "bun run scripts/smoke-npm-package.ts",

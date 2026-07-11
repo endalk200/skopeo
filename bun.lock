@@ -153,6 +153,16 @@
       "name": "@skopeo/biome-config",
       "version": "0.0.0",
     },
+    "packages/tooling/platform-release": {
+      "name": "@skopeo/platform-release",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@skopeo/typescript-config": "workspace:*",
+        "@types/node": "^26.0.0",
+        "typescript": "6.0.3",
+        "vitest": "^4.1.10",
+      },
+    },
     "packages/tooling/typescript-config": {
       "name": "@skopeo/typescript-config",
       "version": "0.0.0",
@@ -515,6 +525,8 @@
     "@skopeo/code-review-agent": ["@skopeo/code-review-agent@workspace:packages/shared/code-review-agent"],
 
     "@skopeo/config": ["@skopeo/config@workspace:packages/cli/config"],
+
+    "@skopeo/platform-release": ["@skopeo/platform-release@workspace:packages/tooling/platform-release"],
 
     "@skopeo/tools": ["@skopeo/tools@workspace:packages/shared/tools"],
 
