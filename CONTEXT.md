@@ -34,7 +34,27 @@ _Avoid_: Current working directory, process cwd, project path
 
 **Skopeo User**:
 A developer who runs or configures Skopeo in a local or hosted code review workflow.
-_Avoid_: Operator, end user, CLI user
+_Avoid_: End user, CLI user
+
+**Self-hoster**:
+A Skopeo User who deploys and maintains the Platform API and Web Application on infrastructure they control.
+_Avoid_: End user
+
+**Single-host Operator**:
+A Self-hoster who runs the supported single-host Platform deployment.
+_Avoid_: Platform Operator
+
+**Platform Operator**:
+A Self-hoster who integrates the Platform API and Web Application with external ingress, PostgreSQL, or observability infrastructure.
+_Avoid_: Single-host Operator
+
+**Platform Release**:
+A compatible Platform API and Web Application pair identified by one shared version independently of the CLI release lifecycle.
+_Avoid_: Application release, CLI release
+
+**Container Channel**:
+A named container reference that selects either the current stable Platform Release or the latest validated development revision.
+_Avoid_: Version, release
 
 **Release Metadata**:
 The package-level identity used by Skopeo at runtime, including the CLI version reported to users and telemetry.
@@ -64,6 +84,9 @@ _Avoid_: Reasoning effort, level, light/moderate/heavy
 - A **Review Report** contains zero or more **Review Findings**
 - A **Review Target** belongs to one **Repository Root**
 - A **Skopeo User** runs or configures the **Code Review Agent** through Skopeo's CLI
+- A **Self-hoster** deploys a **Platform Release**
+- A **Single-host Operator** uses the supported single-host deployment
+- A **Platform Operator** integrates a **Platform Release** with external infrastructure
 - **Release Metadata** identifies the running Skopeo package in user output and telemetry
 - **Skopeo Configuration** influences how Skopeo runs for a **Skopeo User**
 - A **Code Review Agent** may invoke **Agent Tools** while analyzing a **Review Target**

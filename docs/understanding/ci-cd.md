@@ -4,6 +4,10 @@ This document explains how Skopeo checks changes and releases the CLI package.
 For release steps, use the release runbook in
 `docs/how-tos/release-pipeline.md`.
 
+The Platform API and Web Application use a separate shared Platform Release
+lifecycle. See `docs/how-tos/self-host-platform.md` for deployment and artifact
+verification.
+
 ## What CI Protects
 
 Pull requests into `main` are expected to pass two required checks:
@@ -13,7 +17,8 @@ Pull requests into `main` are expected to pass two required checks:
 
 `Quality Gate` comes from `.github/workflows/ci.yml`. It installs dependencies
 with Bun `1.3.6`, then runs formatting checks, package boundary validation,
-linting, type checks, tests, and the build.
+linting, type checks, tests, builds, and native AMD64/ARM64 container smoke and
+vulnerability checks.
 
 `Analyze` comes from `.github/workflows/codeql.yml`. It runs CodeQL for
 JavaScript and TypeScript.
@@ -33,7 +38,7 @@ automation.
 
 | Workflow | When it runs | What it does |
 | --- | --- | --- |
-| `CI` | PRs to `main`, pushes to `main`, manual dispatch | Runs the quality gate. |
+| `CI` | PRs to `main`, pushes to `main`, manual dispatch | Runs the quality gate; successful `main` pushes publish the Platform image pair. |
 | `CodeQL` | PRs to `main`, pushes to `main`, manual dispatch, Mondays at 06:30 UTC | Runs code scanning. |
 | `Release PR` | Pushes to `main`, manual dispatch | Converts Changesets into a version PR. |
 | `Stage npm Release` | Pushes to `main`, manual dispatch | Stages a new `@skopeo/cli` package version on npm. |
@@ -43,6 +48,30 @@ Dependabot is configured separately:
 
 - GitHub Actions updates: Mondays at 07:00 UTC
 - Bun dependency updates: Tuesdays at 07:00 UTC
+- API and Web Dockerfile updates: Wednesdays at 07:00 UTC
+
+## Platform Release Model
+
+`@skopeo/api` and `@skopeo/web` are private workspace packages in one Changesets
+fixed group. Their shared SemVer identifies a compatible image pair; it does not
+change or constrain the CLI version.
+
+Pull requests build, smoke-test, and scan both final application images on
+native AMD64 and ARM64 runners without registry write permission. After every
+image variant passes, CI also starts the checked-in Compose bundle and verifies
+routing, migration idempotence, and that a failed migration blocks API startup.
+On `main`, only after the complete Quality Gate succeeds, a job-scoped publisher rebuilds and scans the
+same four variants, pushes them by digest, assembles multi-platform indexes,
+creates GitHub attestations, and only then promotes `edge` and the immutable
+`sha-<commit>` references for both packages.
+
+When a Changesets release PR changes both application versions, the same run
+also creates write-once exact SemVer references, moves stable-only `latest`, and
+publishes `skopeo-platform-vX.Y.Z` with both digests and the checksummed Compose
+bundle. Permissions are split by responsibility: variant builders receive only
+`packages: write`, index promotion receives `packages`, `id-token`, and
+`attestations` write access, and the stable GitHub Release job alone receives
+`contents: write`.
 
 ## Release Model
 
