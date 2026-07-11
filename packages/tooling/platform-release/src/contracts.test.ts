@@ -229,16 +229,25 @@ fi
 				`#!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == *"--head changeset-release/main"* ]]
+[[ "$*" == *"--base main"* ]]
 [[ "$*" == *"--state open"* ]]
-printf '42\n'
+printf '[
+	{"number":40,"baseRefName":"main","headRefName":"changeset-release/main-fix","headRepositoryOwner":{"login":"endalk200"},"headRepository":{"name":"skopeo"}},
+	{"number":41,"baseRefName":"main","headRefName":"changeset-release/main","headRepositoryOwner":{"login":"fork-owner"},"headRepository":{"name":"skopeo"}},
+	{"number":42,"baseRefName":"main","headRefName":"changeset-release/main","headRepositoryOwner":{"login":"endalk200"},"headRepository":{"name":"skopeo"}}
+]\n'
 `,
 			);
 			chmodSync(mockGh, 0o755);
-			const output = execFileSync("bash", [script("find-open-release-pr.sh"), "changeset-release/main"], {
-				cwd: repositoryRoot,
-				env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` },
-				encoding: "utf8",
-			});
+			const output = execFileSync(
+				"bash",
+				[script("find-open-release-pr.sh"), "changeset-release/main", "main", "endalk200", "skopeo"],
+				{
+					cwd: repositoryRoot,
+					env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` },
+					encoding: "utf8",
+				},
+			);
 			expect(output).toBe("42\n");
 		} finally {
 			rmSync(fixture, { force: true, recursive: true });

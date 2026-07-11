@@ -57,7 +57,10 @@ jobs:
             echo "::warning title=Release PR update blocked::The release branch was pushed, but GitHub blocked this token from creating or updating pull requests. Configure RELEASE_PR_TOKEN or enable the repository setting that allows GitHub Actions to create pull requests, then open ${pr_url}."
           }
 
-          release_pr="$(bash scripts/find-open-release-pr.sh changeset-release/main)"
+          release_pr="$(
+            bash scripts/find-open-release-pr.sh \
+              changeset-release/main main "${GITHUB_REPOSITORY_OWNER}" "${GITHUB_REPOSITORY#*/}"
+          )"
           if [[ -n "${release_pr}" ]]; then
             gh pr edit "${release_pr}" --title "Version Packages" --body "Automated Changesets version PR." || warn_blocked
           elif ! gh pr create --base main --head changeset-release/main --title "Version Packages" --body "Automated Changesets version PR."; then
