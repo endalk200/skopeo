@@ -15,6 +15,7 @@ concurrency:
   # A main run may be publishing a compatible pair; never interrupt it between
   # package promotions. Pull request runs use distinct refs and remain isolated.
   cancel-in-progress: false
+  queue: max
 
 jobs:
   format:
@@ -24,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -47,6 +50,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -70,6 +75,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -84,6 +91,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -107,6 +116,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -133,6 +144,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -189,6 +202,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -224,7 +239,7 @@ jobs:
           runtime_user="$(docker image inspect --format '{{.Config.User}}' "${image}")"
           runtime_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image}")"
 
-          if [[ -z "${runtime_user}" || "${runtime_user}" == "0" || "${runtime_user}" == "root" ]]; then
+          if [[ -z "${runtime_user}" || "${runtime_user}" =~ (^|:)(0|root)(:|$) ]]; then
             echo "Runtime image must declare a non-root user."
             exit 1
           fi
@@ -350,6 +365,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -457,6 +474,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -583,6 +602,7 @@ jobs:
     needs: publish-platform-variants
     outputs:
       api_digest: ${{ steps.promote.outputs.api_digest }}
+      release_sha: ${{ steps.release.outputs.release_sha }}
       stable: ${{ steps.release.outputs.stable }}
       version: ${{ steps.release.outputs.version }}
       web_digest: ${{ steps.promote.outputs.web_digest }}
@@ -590,14 +610,15 @@ jobs:
     timeout-minutes: 20
     permissions:
       attestations: write
-      contents: read
+      contents: write
       id-token: write
       packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Bun dependencies
         uses: ./.github/actions/setup-bun-dependencies
@@ -626,14 +647,114 @@ jobs:
 
       - name: Resolve release channel
         id: release
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           api_version="$(jq --raw-output .version apps/api/package.json)"
           web_version="$(jq --raw-output .version apps/web/package.json)"
-          previous_api="$(git show HEAD^:apps/api/package.json 2>/dev/null | jq --raw-output .version || printf '%s' "${api_version}")"
-          previous_web="$(git show HEAD^:apps/web/package.json 2>/dev/null | jq --raw-output .version || printf '%s' "${web_version}")"
-          bun run --cwd packages/tooling/platform-release --silent platform:resolve -- \
-            "${api_version}" "${web_version}" "${previous_api}" "${previous_web}" \
-            >> "${GITHUB_OUTPUT}"
+          previous_api="$(git show "${BASE_SHA}:apps/api/package.json" 2>/dev/null | jq --raw-output .version || printf '%s' "${api_version}")"
+          previous_web="$(git show "${BASE_SHA}:apps/web/package.json" 2>/dev/null | jq --raw-output .version || printf '%s' "${web_version}")"
+          api_digest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:${api_version}")"
+          web_digest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:${web_version}")"
+          api_version_tag_published=false
+          web_version_tag_published=false
+          github_release_published=false
+          [[ -n "${api_digest}" ]] && api_version_tag_published=true
+          [[ -n "${web_digest}" ]] && web_version_tag_published=true
+          tag="skopeo-platform-v${api_version}"
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" 2>/dev/null || true)"
+          release_exists=false
+          [[ -n "${release_json}" ]] && release_exists=true
+          if [[ "${release_exists}" == true && "$(jq --raw-output .draft <<< "${release_json}")" == false ]]; then
+            github_release_published=true
+          fi
+          release_outputs="$(
+            bun run --cwd packages/tooling/platform-release --silent platform:resolve -- \
+              "${api_version}" "${web_version}" "${previous_api}" "${previous_web}" \
+              "${api_version_tag_published}" "${web_version_tag_published}" \
+              "${github_release_published}"
+          )"
+          release_sha="${GITHUB_SHA}"
+          stable_requested=false
+          if [[ "${api_version_tag_published}" == false \
+            || "${web_version_tag_published}" == false \
+            || "${github_release_published}" == false ]]; then
+            stable_requested=true
+          fi
+          if [[ "${stable_requested}" == true ]]; then
+            if [[ "${github_release_published}" == true ]]; then
+              echo "Published ${tag} is missing one or more immutable image tags."
+              exit 1
+            elif [[ "${release_exists}" == true ]]; then
+              release_sha="$(jq --raw-output .target_commitish <<< "${release_json}")"
+              if [[ "${api_version_tag_published}" == false || "${web_version_tag_published}" == false ]]; then
+                gh release edit "${tag}" --draft --target "${GITHUB_SHA}"
+                release_sha="${GITHUB_SHA}"
+              fi
+            else
+              if [[ "${api_version_tag_published}" == true && "${web_version_tag_published}" == true ]]; then
+                api_package_version="$(
+                  bash scripts/inspect-platform-package-version.sh \
+                    "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api" "${api_digest}"
+                )"
+                web_package_version="$(
+                  bash scripts/inspect-platform-package-version.sh \
+                    "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web" "${web_digest}"
+                )"
+                api_release_sha="$(
+                  jq --raw-output \
+                    '[.metadata.container.tags[] | select(test("^sha-[0-9a-f]{40}$"))] | unique | if length == 1 then .[0][4:] else empty end' \
+                    <<< "${api_package_version}"
+                )"
+                web_release_sha="$(
+                  jq --raw-output \
+                    '[.metadata.container.tags[] | select(test("^sha-[0-9a-f]{40}$"))] | unique | if length == 1 then .[0][4:] else empty end' \
+                    <<< "${web_package_version}"
+                )"
+                if [[ -z "${api_release_sha}" || "${api_release_sha}" != "${web_release_sha}" ]]; then
+                  echo "Published ${api_version} images do not identify one matching release commit."
+                  exit 1
+                fi
+                release_sha="${api_release_sha}"
+              fi
+              gh release create "${tag}" \
+                --draft \
+                --target "${release_sha}" \
+                --title "Skopeo Platform v${api_version}" \
+                --notes "Platform Release publication is in progress."
+            fi
+          fi
+          printf '%s\n' "${release_outputs}" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Repair incomplete Platform Release
+        if: ${{ steps.release.outputs.repair == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          for app in api web; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
+            digest="$(bash scripts/inspect-platform-image.sh --optional "${image}:${VERSION}")"
+            if [[ -n "${digest}" ]]; then
+              package_version="$(bash scripts/inspect-platform-package-version.sh "${image}" "${digest}")"
+              mapfile -t failed_shas < <(
+                jq --raw-output \
+                  '.metadata.container.tags[] | select(test("^sha-[0-9a-f]{40}$")) | .[4:]' \
+                  <<< "${package_version}" \
+                  | sort --unique
+              )
+              if [[ "${#failed_shas[@]}" != 1 ]]; then
+                echo "Refusing to repair ${image}:${VERSION}: expected exactly one failed commit tag."
+                exit 1
+              fi
+              failed_sha="${failed_shas[0]}"
+              bash scripts/delete-platform-image-version.sh "${image}" "${digest}" \
+                "${VERSION}" "sha-${failed_sha}" edge latest \
+                "regex:^candidate-${failed_sha}-[0-9]+-[0-9]+$"
+            fi
+          done
 
       - name: Assemble candidate image indexes
         id: candidate
@@ -645,6 +766,7 @@ jobs:
             amd64_digest="$(cat "digests/digest-${app}-amd64.txt")"
             arm64_digest="$(cat "digests/digest-${app}-arm64.txt")"
             docker buildx imagetools create \
+              --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA}" \
               --tag "${image}:${CANDIDATE}" \
               "${image}@${amd64_digest}" \
               "${image}@${arm64_digest}"
@@ -670,6 +792,8 @@ jobs:
         id: promote
         env:
           API_DIGEST: ${{ steps.candidate.outputs.api_digest }}
+          CANDIDATE: candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          GH_TOKEN: ${{ github.token }}
           WEB_DIGEST: ${{ steps.candidate.outputs.web_digest }}
           STABLE: ${{ steps.release.outputs.stable }}
           VERSION: ${{ steps.release.outputs.version }}
@@ -685,38 +809,137 @@ jobs:
                 echo "Refusing to overwrite ${image}:${tag}: expected ${expected_digest}, found ${existing_digest}."
                 return 1
               fi
+              LAST_TAG_CREATED=false
               return 0
             fi
             docker buildx imagetools create --tag "${image}:${tag}" "${image}@${expected_digest}"
+            LAST_TAG_CREATED=true
           }
-          old_api_edge="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge")"
-          old_web_edge="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge")"
-          old_api_latest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest")"
-          old_web_latest="$(bash scripts/inspect-platform-image.sh --optional "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest")"
-          rollback_channels() {
+          declare -A old_digest created moved
+          for app in api web; do
+            for channel in edge latest; do
+              old_digest["${app}_${channel}"]="$(
+                bash scripts/inspect-platform-image.sh --optional \
+                  "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}:${channel}"
+              )"
+              moved["${app}_${channel}"]=false
+            done
+            created["${app}_sha"]=false
+            created["${app}_version"]=false
+          done
+          rollback_publication() {
             exit_code=$?
             set +e
-            [[ -n "${old_api_edge}" ]] && docker buildx imagetools create \
-              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge" \
-              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${old_api_edge}"
-            [[ -n "${old_web_edge}" ]] && docker buildx imagetools create \
-              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge" \
-              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${old_web_edge}"
-            [[ -n "${old_api_latest}" ]] && docker buildx imagetools create \
-              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest" \
-              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${old_api_latest}"
-            [[ -n "${old_web_latest}" ]] && docker buildx imagetools create \
-              --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest" \
-              "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${old_web_latest}"
+            rollback_failed=false
+            for app in api web; do
+              for channel in edge latest; do
+                previous_digest="${old_digest[${app}_${channel}]}"
+                if [[ -n "${previous_digest}" ]]; then
+                  restored=false
+                  for attempt in 1 2 3; do
+                    if docker buildx imagetools create \
+                      --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}:${channel}" \
+                      "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}@${previous_digest}"; then
+                      restored=true
+                      break
+                    fi
+                    echo "Rollback restoration attempt ${attempt} failed for ${app}:${channel}." >&2
+                  done
+                  [[ "${restored}" == false ]] && rollback_failed=true
+                fi
+              done
+            done
+            for app in api web; do
+              absent_channels=()
+              for channel in edge latest; do
+                if [[ "${moved[${app}_${channel}]}" == true \
+                  && -z "${old_digest[${app}_${channel}]}" ]]; then
+                  absent_channels+=("${channel}")
+                fi
+              done
+              if (( ${#absent_channels[@]} > 0 )); then
+                image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
+                digest_var="${app^^}_DIGEST"
+                candidate_digest="${!digest_var}"
+                rollback_tag="rollback-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${app}"
+                rollback_index_created=false
+                for attempt in 1 2 3; do
+                  if docker buildx imagetools create \
+                    --annotation "index:org.opencontainers.image.ref.name=${rollback_tag}" \
+                    --tag "${image}:${rollback_tag}" \
+                    "${image}@${candidate_digest}"; then
+                    rollback_index_created=true
+                    break
+                  fi
+                  echo "Rollback index attempt ${attempt} failed for ${app}." >&2
+                done
+                if [[ "${rollback_index_created}" == true ]]; then
+                  rollback_digest="$(bash scripts/inspect-platform-image.sh "${image}:${rollback_tag}")"
+                  rollback_tags=("${rollback_tag}")
+                  for channel in "${absent_channels[@]}"; do
+                    channel_moved=false
+                    for attempt in 1 2 3; do
+                      if docker buildx imagetools create \
+                        --tag "${image}:${channel}" \
+                        "${image}@${rollback_digest}"; then
+                        channel_moved=true
+                        break
+                      fi
+                      echo "Rollback channel removal attempt ${attempt} failed for ${app}:${channel}." >&2
+                    done
+                    if [[ "${channel_moved}" == true ]]; then
+                      rollback_tags+=("${channel}")
+                    else
+                      rollback_failed=true
+                    fi
+                  done
+                  if ! bash scripts/delete-platform-image-version.sh \
+                    "${image}" "${rollback_digest}" "${rollback_tags[@]}"; then
+                    echo "Rollback could not remove temporary channel tags for ${app}." >&2
+                    rollback_failed=true
+                  fi
+                else
+                  rollback_failed=true
+                fi
+              fi
+            done
+            for app in api web; do
+              digest_var="${app^^}_DIGEST"
+              digest="${!digest_var}"
+              allowed_tags=("${CANDIDATE}")
+              [[ "${created[${app}_sha]}" == true ]] && allowed_tags+=("sha-${GITHUB_SHA}")
+              [[ "${created[${app}_version]}" == true ]] && allowed_tags+=("${VERSION}")
+              if [[ "${moved[${app}_edge]}" == true && -z "${old_digest[${app}_edge]}" ]]; then
+                allowed_tags+=(edge)
+              fi
+              if [[ "${moved[${app}_latest]}" == true && -z "${old_digest[${app}_latest]}" ]]; then
+                allowed_tags+=(latest)
+              fi
+              deleted=false
+              for attempt in 1 2 3; do
+                if bash scripts/delete-platform-image-version.sh \
+                  "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}" \
+                  "${digest}" "${allowed_tags[@]}"; then
+                  deleted=true
+                  break
+                fi
+                echo "Rollback deletion attempt ${attempt} failed for ${app}." >&2
+              done
+              [[ "${deleted}" == false ]] && rollback_failed=true
+            done
+            if [[ "${rollback_failed}" == true ]]; then
+              echo "Rollback could not remove every tag from the failed publication." >&2
+            fi
             exit "${exit_code}"
           }
-          trap rollback_channels ERR
+          trap rollback_publication ERR
 
           for app in api web; do
             image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
             digest_var="${app^^}_DIGEST"
             digest="${!digest_var}"
             ensure_write_once_tag "${image}" "sha-${GITHUB_SHA}" "${digest}"
+            created["${app}_sha"]="${LAST_TAG_CREATED}"
             echo "${app}_sha_digest=${digest}" >> "${GITHUB_OUTPUT}"
           done
 
@@ -725,16 +948,21 @@ jobs:
           docker buildx imagetools create \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:edge" \
             "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${api_sha_digest}"
+          moved[api_edge]=true
           docker buildx imagetools create \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:edge" \
             "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${web_sha_digest}"
+          moved[web_edge]=true
 
           if [[ "${STABLE}" == true ]]; then
             for app in api web; do
               image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-${app}"
               digest_var="${app^^}_DIGEST"
               digest="${!digest_var}"
+              existing_digest="$(bash scripts/inspect-platform-image.sh --optional "${image}:${VERSION}")"
+              [[ -n "${existing_digest}" ]] && digest="${existing_digest}"
               ensure_write_once_tag "${image}" "${VERSION}" "${digest}"
+              created["${app}_version"]="${LAST_TAG_CREATED}"
               echo "${app}_digest=${digest}" >> "${GITHUB_OUTPUT}"
             done
 
@@ -743,9 +971,11 @@ jobs:
             docker buildx imagetools create \
               --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api:latest" \
               "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-api@${api_stable_digest}"
+            moved[api_latest]=true
             docker buildx imagetools create \
               --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web:latest" \
               "ghcr.io/${GITHUB_REPOSITORY_OWNER}/skopeo-web@${web_stable_digest}"
+            moved[web_latest]=true
           else
             echo "api_digest=${api_sha_digest}" >> "${GITHUB_OUTPUT}"
             echo "web_digest=${web_sha_digest}" >> "${GITHUB_OUTPUT}"
@@ -763,6 +993,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ needs['publish-platform'].outputs.release_sha }}
 
       - name: Create version-matched bundle
         env:
@@ -780,6 +1013,7 @@ jobs:
         env:
           API_DIGEST: ${{ needs['publish-platform'].outputs.api_digest }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs['publish-platform'].outputs.release_sha }}
           VERSION: ${{ needs['publish-platform'].outputs.version }}
           WEB_DIGEST: ${{ needs['publish-platform'].outputs.web_digest }}
         run: |
@@ -799,7 +1033,7 @@ jobs:
             --method POST
             "repos/${GITHUB_REPOSITORY}/releases/generate-notes"
             -f "tag_name=${tag}"
-            -f "target_commitish=${GITHUB_SHA}"
+            -f "target_commitish=${RELEASE_SHA}"
             --jq .body
           )
           if [[ -n "${previous_tag}" ]]; then
@@ -825,7 +1059,7 @@ jobs:
           if ! gh release view "${tag}" >/dev/null 2>&1; then
             gh release create "${tag}" \
               --draft \
-              --target "${GITHUB_SHA}" \
+              --target "${RELEASE_SHA}" \
               --title "Skopeo Platform v${VERSION}" \
               --notes-file "${notes}"
           fi

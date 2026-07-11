@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -25,6 +25,18 @@ describe("Platform Release contract", () => {
 	it("rejects mismatched or partially changed application versions", () => {
 		expect(() => run("resolve-platform-release.sh", ["0.2.0", "0.3.0"])).toThrow();
 		expect(() => run("resolve-platform-release.sh", ["0.2.0", "0.2.0", "0.1.0", "0.2.0"])).toThrow();
+	});
+
+	it("derives Platform Release publication from durable state", () => {
+		expect(
+			run("resolve-platform-release.sh", ["0.2.0", "0.2.0", "0.1.0", "0.1.0", "false", "false", "false"]),
+		).toBe("stable=true\nrepair=false\nversion=0.2.0\n");
+		expect(run("resolve-platform-release.sh", ["0.2.0", "0.2.0", "0.2.0", "0.2.0", "true", "true", "true"])).toBe(
+			"stable=false\nrepair=false\nversion=0.2.0\n",
+		);
+		expect(run("resolve-platform-release.sh", ["0.2.0", "0.2.0", "0.2.0", "0.2.0", "true", "false", "false"])).toBe(
+			"stable=true\nrepair=true\nversion=0.2.0\n",
+		);
 	});
 
 	it("rejects an incomplete final architecture pair", () => {
@@ -82,6 +94,89 @@ describe("Platform Release contract", () => {
 				].join("\n"),
 			);
 			expect(() => run("validate-trivy-ignore.sh", [ignoreFile])).toThrow();
+		} finally {
+			rmSync(fixture, { force: true, recursive: true });
+		}
+	});
+
+	it("rejects invalid dates, empty policies, and accepts valid YAML indentation", () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-trivy-policy-"));
+		const ignoreFile = path.join(fixture, ".trivyignore.yaml");
+		try {
+			writeFileSync(ignoreFile, "vulnerabilities: []\n");
+			expect(() => run("validate-trivy-ignore.sh", [ignoreFile])).toThrow();
+
+			writeFileSync(
+				ignoreFile,
+				[
+					"vulnerabilities:",
+					"    - id: CVE-BAD-DATE",
+					"      purls:",
+					"        - pkg:example/package@1.0.0",
+					"      statement: Invalid calendar date fixture.",
+					"      expired_at: 2099-02-30",
+				].join("\n"),
+			);
+			expect(() => run("validate-trivy-ignore.sh", [ignoreFile])).toThrow();
+
+			writeFileSync(
+				ignoreFile,
+				[
+					"vulnerabilities:",
+					"    - id: CVE-VALID",
+					"      paths:",
+					"        - /usr/bin/example",
+					"      statement: Deeper indentation remains valid YAML.",
+					"      expired_at: 2099-02-28",
+				].join("\n"),
+			);
+			expect(() => run("validate-trivy-ignore.sh", [ignoreFile])).not.toThrow();
+		} finally {
+			rmSync(fixture, { force: true, recursive: true });
+		}
+	});
+
+	it("deletes only package versions whose tags belong to the failed publication", () => {
+		const fixture = mkdtempSync(path.join(tmpdir(), "skopeo-package-delete-"));
+		const mockGh = path.join(fixture, "gh");
+		const calls = path.join(fixture, "calls.log");
+		const digest = `sha256:${"a".repeat(64)}`;
+		try {
+			writeFileSync(
+				mockGh,
+				`#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == *"/users/test-owner"* && "$*" != *"/packages/"* ]]; then
+	printf 'User\\n'
+elif [[ "$*" == *"--method DELETE"* ]]; then
+	printf '%s\\n' "$*" >> "${calls}"
+else
+	printf '[[{"id":42,"name":"${digest}","url":"https://api.github.test/version/42","metadata":{"container":{"tags":["candidate-test","sha-test"]}}}]]'
+fi
+`,
+			);
+			chmodSync(mockGh, 0o755);
+			const runDelete = (allowedTags: ReadonlyArray<string>) =>
+				execFileSync(
+					"bash",
+					[
+						script("delete-platform-image-version.sh"),
+						"ghcr.io/test-owner/skopeo-api",
+						digest,
+						...allowedTags,
+					],
+					{
+						cwd: repositoryRoot,
+						env: {
+							...process.env,
+							GITHUB_REPOSITORY_OWNER: "test-owner",
+							PATH: `${fixture}:${process.env.PATH}`,
+						},
+					},
+				);
+			runDelete(["candidate-test", "sha-test"]);
+			expect(readFileSync(calls, "utf8")).toContain("https://api.github.test/version/42");
+			expect(() => runDelete(["candidate-test"])).toThrow();
 		} finally {
 			rmSync(fixture, { force: true, recursive: true });
 		}
