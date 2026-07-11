@@ -8,6 +8,7 @@ const repositoryRoot = path.resolve(
 );
 
 const nextConfig: NextConfig = {
+	generateBuildId: async () => process.env.SKOPEO_BUILD_ID ?? "development",
 	output: "standalone",
 	outputFileTracingRoot: repositoryRoot,
 	reactStrictMode: true,
