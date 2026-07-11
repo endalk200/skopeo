@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.20@sha256:26147acbda4f14c5add9946e2fd2ed543fc402884fd75146bd342a7f6271dc1d
-FROM oven/bun:1.3.6-slim@sha256:9d20d1b535596c4a021ba2087d2d303c4098e96be15f47775729cf7a259bb41e AS bun-base
+FROM oven/bun:1.3.14-slim@sha256:d56a2534ffd262e92c12fd3249d3924d296d97086da773f821d7d0477435ea04 AS bun-base
 RUN bun add --global turbo@2.10.4
 
 FROM bun-base AS pruner
@@ -7,7 +7,7 @@ WORKDIR /repo
 COPY . .
 RUN turbo prune @skopeo/web --docker
 
-FROM oven/bun:1.3.6-slim@sha256:9d20d1b535596c4a021ba2087d2d303c4098e96be15f47775729cf7a259bb41e AS build
+FROM oven/bun:1.3.14-slim@sha256:d56a2534ffd262e92c12fd3249d3924d296d97086da773f821d7d0477435ea04 AS build
 ARG REVISION
 RUN test -n "${REVISION}"
 ENV SKOPEO_BUILD_ID=${REVISION}
