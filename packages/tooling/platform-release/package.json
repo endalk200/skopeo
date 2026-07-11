@@ -1,0 +1,25 @@
+{
+	"name": "@skopeo/platform-release",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"check-types": "tsc -p tsconfig.json --noEmit",
+		"format": "biome check --write --linter-enabled=false package.json tsconfig.json src",
+		"format:check": "biome check --linter-enabled=false package.json tsconfig.json src",
+		"lint": "biome lint package.json tsconfig.json src",
+		"lint:fix": "biome lint --write package.json tsconfig.json src",
+		"platform:enforce-trivy-report": "bash ../../../scripts/enforce-trivy-report.sh",
+		"platform:resolve": "bash ../../../scripts/resolve-platform-release.sh",
+		"platform:validate-digests": "bash ../../../scripts/validate-platform-digests.sh",
+		"platform:validate-trivy-ignore": "bash ../../../scripts/validate-trivy-ignore.sh",
+		"test": "vitest run src --exclude \"**/*.integration.test.ts\"",
+		"test:compose": "vitest run src/compose.integration.test.ts"
+	},
+	"devDependencies": {
+		"@skopeo/typescript-config": "workspace:*",
+		"@types/node": "^26.0.0",
+		"typescript": "6.0.3",
+		"vitest": "^4.1.10"
+	}
+}

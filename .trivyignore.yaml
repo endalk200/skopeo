@@ -1,0 +1,74 @@
+vulnerabilities:
+  - id: CVE-2026-53615
+    purls:
+      - pkg:deb/debian/bsdutils@2.41-5?arch=amd64&distro=debian-13.5&epoch=1
+      - pkg:deb/debian/bsdutils@2.41-5?arch=arm64&distro=debian-13.5&epoch=1
+      - pkg:deb/debian/libblkid1@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libblkid1@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/liblastlog2-2@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/liblastlog2-2@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/libmount1@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libmount1@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/libsmartcols1@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libsmartcols1@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/libuuid1@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libuuid1@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/login@4.16.0-2%2Breally2.41-5?arch=amd64&distro=debian-13.5&epoch=1
+      - pkg:deb/debian/login@4.16.0-2%2Breally2.41-5?arch=arm64&distro=debian-13.5&epoch=1
+      - pkg:deb/debian/mount@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/mount@2.41-5?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/util-linux@2.41-5?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/util-linux@2.41-5?arch=arm64&distro=debian-13.5
+    statement: The pinned Debian runtime has no fixed package; the non-root services never invoke disk or partition utilities. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-41992
+    purls:
+      - pkg:deb/debian/gzip@1.13-1?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/gzip@1.13-1?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; neither runtime invokes the gzip executable because HTTP compression is handled by the gateway. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-54369
+    purls:
+      - pkg:deb/debian/libacl1@2.3.2-2%2Bb1?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libacl1@2.3.2-2%2Bb1?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; the application does not inspect or modify filesystem ACLs. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2025-69720
+    purls:
+      - pkg:deb/debian/libtinfo6@6.5%2B20250216-2?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/libtinfo6@6.5%2B20250216-2?arch=arm64&distro=debian-13.5
+      - pkg:deb/debian/ncurses-base@6.5%2B20250216-2?arch=all&distro=debian-13.5
+      - pkg:deb/debian/ncurses-bin@6.5%2B20250216-2?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/ncurses-bin@6.5%2B20250216-2?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; the headless services accept no terminal input and do not invoke ncurses utilities. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-42496
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian deferred a fix; the Node services never invoke Perl or Archive::Tar on untrusted archives. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-8376
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: The reported Perl overflow affects 32-bit builds; only 64-bit AMD64 and ARM64 images are published, and neither service invokes Perl. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-42497
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian deferred a fix; the Node services never invoke Perl or Archive::Tar on untrusted archives. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-48962
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; the Node services never invoke Perl IO::Compress with attacker-controlled output paths. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-9538
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian deferred a fix; the Node services never invoke Perl or Archive::Tar on untrusted archives. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15

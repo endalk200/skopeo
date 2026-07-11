@@ -92,6 +92,16 @@
 		"test": {
 			"dependsOn": ["transit"]
 		},
+		"test:compose": {
+			"cache": false,
+			"passThroughEnv": [
+				"COMPOSE_PROJECT_NAME",
+				"DATABASE_URL",
+				"POSTGRES_PASSWORD",
+				"SKOPEO_HOST",
+				"SKOPEO_VERSION"
+			]
+		},
 		"test:integration": {
 			"cache": false
 		},

@@ -3,7 +3,14 @@
 /.github/CODEOWNERS @endalk200
 /.github/workflows/ @endalk200
 /.changeset/ @endalk200
+/.trivyignore.yaml @endalk200
 /apps/cli/package.json @endalk200
+/apps/api/Dockerfile @endalk200
+/apps/api/package.json @endalk200
+/apps/web/Dockerfile @endalk200
+/apps/web/package.json @endalk200
+/deploy/self-host/ @endalk200
+/docs/understanding/container-security.md @endalk200
 /apps/cli/README.md @endalk200
 /package.json @endalk200
 /bun.lock @endalk200

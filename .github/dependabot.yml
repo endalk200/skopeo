@@ -24,3 +24,19 @@ updates:
       bun-dependencies:
         patterns:
           - "*"
+
+  - package-ecosystem: docker
+    directory: /apps/api
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "07:00"
+      timezone: Etc/UTC
+
+  - package-ecosystem: docker
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "07:00"
+      timezone: Etc/UTC
