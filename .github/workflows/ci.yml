@@ -582,9 +582,12 @@ jobs:
             .
           jq --raw-output '.["containerimage.digest"]' "${metadata}" > "digest-${APP}-${ARCH}.txt"
           scan_config_digest="$(jq --raw-output '.["containerimage.config.digest"]' "${RUNNER_TEMP}/scan-metadata-${APP}-${ARCH}.json")"
-          publish_config_digest="$(jq --raw-output '.["containerimage.config.digest"]' "${metadata}")"
+          pushed_digest="$(cat "digest-${APP}-${ARCH}.txt")"
+          publish_config_digest="$(
+            bash scripts/inspect-platform-image-config.sh "${image}@${pushed_digest}" "${PLATFORM}"
+          )"
           if [[ "${scan_config_digest}" == null || "${scan_config_digest}" != "${publish_config_digest}" ]]; then
-            echo "The pushed image config does not match the Trivy-scanned image config."
+            echo "The pushed image config ${publish_config_digest} does not match the Trivy-scanned image config ${scan_config_digest}."
             exit 1
           fi
 
