@@ -20,14 +20,14 @@
 		"test:integration": "vitest run integration.test"
 	},
 	"dependencies": {
-		"@effect/platform-node": "4.0.0-beta.94",
-		"@effect/sql-pg": "4.0.0-beta.94",
+		"@effect/platform-node": "4.0.0-beta.97",
+		"@effect/sql-pg": "4.0.0-beta.97",
 		"drizzle-orm": "1.0.0-rc.4",
-		"effect": "4.0.0-beta.94",
+		"effect": "4.0.0-beta.97",
 		"pg": "^8.16.3"
 	},
 	"devDependencies": {
-		"@effect/vitest": "4.0.0-beta.94",
+		"@effect/vitest": "4.0.0-beta.97",
 		"@skopeo/typescript-config": "workspace:*",
 		"@testcontainers/postgresql": "^12.0.4",
 		"@types/node": "^26.1.1",

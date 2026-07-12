@@ -36,9 +36,9 @@
 		"test": "vitest run src --passWithNoTests"
 	},
 	"devDependencies": {
-		"@effect/opentelemetry": "4.0.0-beta.94",
-		"@effect/platform-node": "4.0.0-beta.94",
-		"@effect/vitest": "4.0.0-beta.94",
+		"@effect/opentelemetry": "4.0.0-beta.97",
+		"@effect/platform-node": "4.0.0-beta.97",
+		"@effect/vitest": "4.0.0-beta.97",
 		"@opentelemetry/api": "^1.9.1",
 		"@opentelemetry/api-logs": "^0.220.0",
 		"@opentelemetry/exporter-logs-otlp-http": "^0.220.0",
@@ -47,13 +47,13 @@
 		"@opentelemetry/sdk-logs": "^0.220.0",
 		"@opentelemetry/sdk-trace-base": "^2.9.0",
 		"@opentelemetry/sdk-trace-node": "^2.9.0",
-		"@opentelemetry/semantic-conventions": "^1.42.0",
+		"@opentelemetry/semantic-conventions": "^1.43.0",
 		"@skopeo/code-review-agent": "workspace:*",
 		"@skopeo/config": "workspace:*",
 		"@skopeo/utils": "workspace:*",
 		"@skopeo/typescript-config": "workspace:*",
 		"@types/node": "^26.1.1",
-		"effect": "4.0.0-beta.94",
+		"effect": "4.0.0-beta.97",
 		"typescript": "6.0.3",
 		"vitest": "^4.1.10"
 	}
