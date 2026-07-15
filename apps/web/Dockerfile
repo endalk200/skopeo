@@ -18,7 +18,7 @@ RUN bun install --frozen-lockfile --ignore-scripts
 COPY --from=pruner /repo/out/full/ .
 RUN ./node_modules/.bin/turbo run build --filter=@skopeo/web
 
-FROM node:26-trixie-slim@sha256:ffc78385a788964bb3cbab5e434ff79a10bdc25b8ae6db03fe5fe6cb14053c09 AS runtime
+FROM node:26-trixie-slim@sha256:715e55e4b84e4bb0ff48e49b398a848f08e55daed8eb6a0ea1839ae53bc57583 AS runtime
 ARG VERSION=dev
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Skopeo Web Application" \
