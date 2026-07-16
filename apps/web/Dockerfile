@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.20@sha256:26147acbda4f14c5add9946e2fd2ed543fc402884fd75146bd342a7f6271dc1d
 FROM oven/bun:1.3.14-slim@sha256:d56a2534ffd262e92c12fd3249d3924d296d97086da773f821d7d0477435ea04 AS bun-base
-RUN bun add --global turbo@2.10.4
+RUN bun add --global turbo@2.10.5
 
 FROM bun-base AS pruner
 WORKDIR /repo
