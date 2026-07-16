@@ -1,4 +1,16 @@
 vulnerabilities:
+  - id: CVE-2026-13221
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; the Node services never invoke Perl or compile attacker-controlled regular expressions. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
+  - id: CVE-2026-57432
+    purls:
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13.5
+      - pkg:deb/debian/perl-base@5.40.1-6?arch=arm64&distro=debian-13.5
+    statement: Debian has no fixed package; the Node services never invoke Perl pack or unpack with attacker-controlled templates. Re-evaluate on the next base refresh.
+    expired_at: 2026-08-15
   - id: CVE-2026-53615
     purls:
       - pkg:deb/debian/bsdutils@2.41-5?arch=amd64&distro=debian-13.5&epoch=1
