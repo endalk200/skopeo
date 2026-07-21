@@ -28,10 +28,10 @@
 		"version-packages": "changeset version && bun run sync-cli-version"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.3",
-		"@changesets/cli": "^2.31.0",
+		"@biomejs/biome": "2.5.4",
+		"@changesets/cli": "^2.31.1",
 		"turbo": "^2.10.5",
-		"typescript": "6.0.3"
+		"typescript": "7.0.2"
 	},
 	"engines": {
 		"node": ">=22.12.0"

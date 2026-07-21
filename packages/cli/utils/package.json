@@ -23,11 +23,11 @@
 	"devDependencies": {
 		"@skopeo/typescript-config": "workspace:*",
 		"@types/node": "^26.1.1",
-		"typescript": "6.0.3",
+		"typescript": "7.0.2",
 		"vitest": "^4.1.10",
-		"@effect/opentelemetry": "4.0.0-beta.98",
-		"@effect/platform-node": "4.0.0-beta.98",
-		"@effect/vitest": "4.0.0-beta.98",
-		"effect": "4.0.0-beta.98"
+		"@effect/opentelemetry": "4.0.0-beta.100",
+		"@effect/platform-node": "4.0.0-beta.100",
+		"@effect/vitest": "4.0.0-beta.100",
+		"effect": "4.0.0-beta.100"
 	}
 }
