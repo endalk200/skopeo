@@ -12,6 +12,7 @@ import {
 	type SkopeoConfiguration,
 	TELEMETRY_ENV,
 } from "@skopeo/config";
+import { GitService } from "@skopeo/utils";
 import { Effect, FileSystem, Layer, Logger, Path, Stdio, Terminal } from "effect";
 import { TestConsole } from "effect/testing";
 import { CliOutput } from "effect/unstable/cli";
@@ -45,6 +46,16 @@ const SpawnerLayer = Layer.succeed(
 	ChildProcessSpawner.make(() => Effect.die("Child process spawning is not implemented in CLI tests")),
 );
 
+const GitLayer = Layer.succeed(
+	GitService,
+	GitService.of({
+		getCurrentBranch: () => Effect.succeed("feature/test"),
+		getCurrentBranchHead: () => Effect.succeed("abc123"),
+		getMainBranch: () => Effect.succeed("main"),
+		getRepositoryRoot: () => Effect.succeed("/repo"),
+	}),
+);
+
 const cliTestLayer = (files: Record<string, string> = {}) =>
 	Layer.mergeAll(
 		TestConsole.layer,
@@ -61,6 +72,7 @@ const cliTestLayer = (files: Record<string, string> = {}) =>
 		TerminalLayer,
 		CliOutput.layer(CliOutput.defaultFormatter({ colors: false })),
 		SpawnerLayer,
+		GitLayer,
 		Stdio.layerTest({}),
 		withoutConsoleLogger,
 	);
