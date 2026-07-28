@@ -16,9 +16,9 @@
 	},
 	"dependencies": {
 		"motion": "^12.42.2",
-		"next": "^16.2.10",
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7"
+		"next": "^16.2.12",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8"
 	},
 	"devDependencies": {
 		"@skopeo/biome-config": "workspace:*",
@@ -28,7 +28,7 @@
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"tailwindcss": "^4.3.3",
-		"typescript": "6.0.3",
+		"typescript": "7.0.2",
 		"vitest": "^4.1.10"
 	}
 }
