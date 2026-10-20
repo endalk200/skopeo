@@ -21,16 +21,16 @@
 		"test": "vitest run src --passWithNoTests"
 	},
 	"dependencies": {
-		"@tanstack/ai": "^0.42.0",
-		"effect": "4.0.0-beta.100",
-		"zod": "^4.4.3"
+		"@tanstack/ai": "^0.69.0",
+		"effect": "4.0.5",
+		"zod": "^4.6.7"
 	},
 	"devDependencies": {
-		"@effect/platform-node": "4.0.0-beta.100",
-		"@effect/vitest": "4.0.0-beta.100",
+		"@effect/platform-node": "4.0.5",
+		"@effect/vitest": "4.0.5",
 		"@skopeo/typescript-config": "workspace:*",
-		"@types/node": "^26.1.1",
-		"typescript": "6.0.3",
-		"vitest": "^4.1.10"
+		"@types/node": "^26.6.5",
+		"typescript": "7.0.2",
+		"vitest": "^5.0.5"
 	}
 }
